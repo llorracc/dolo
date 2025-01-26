@@ -15,3 +15,5 @@ pkgs/cache
 pkgs/urls
 setup.py
 .venv/*
+
+.specstory/*
