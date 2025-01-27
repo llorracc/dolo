@@ -63,6 +63,22 @@ def simulate_markov_chain(nodes, transitions, N, T, i0=None, return_values=False
 
 
 class Process:
+    """
+    Base class for all stochastic processes.
+    
+    Defines the common interface that all process types must implement.
+    Process classes represent stochastic processes that can be:
+    - Continuous or discrete
+    - IID or with time dependence
+    - Univariate or multivariate
+    
+    Attributes
+    ----------
+    d : int
+        Number of dimensions (variables) in the process
+    variables : tuple of str, optional
+        Names of the variables in the process
+    """
 
     d: int  # number of dimensions
     variables: Union[None, Tuple[str, ...]]  # names of variables (optional)
@@ -204,6 +220,29 @@ class GDP(DiscretizedProcess):
 
 
 class DiscretizedIIDProcess(DiscretizedProcess):
+    """
+    Discretized representation of an IID (Independent and Identically Distributed) process.
+    
+    Handles the discretization of continuous IID processes into a finite number of
+    nodes and weights for numerical integration. Supports both univariate and
+    multivariate distributions.
+    
+    Parameters
+    ----------
+    nodes : array
+        Points at which to evaluate the process
+    weights : array
+        Integration weights for each node
+    integration_nodes : array, optional
+        Additional nodes for more accurate integration
+    integration_weights : array, optional
+        Weights corresponding to integration_nodes
+        
+    Notes
+    -----
+    The discretization preserves the moments of the original continuous
+    distribution up to a specified order, depending on the number of nodes used.
+    """
     def point(self, i: int) -> int:
         raise Exception("Not Implemented.")
 
