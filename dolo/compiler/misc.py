@@ -45,7 +45,7 @@ def calibration_to_vector(symbols, calibration_dict):  # Convert calibration dic
 
     calibration = dict()  # Initialize output dictionary
     for group in symbols:  # Process each symbol group
-        t = numpy.array([sol.get(s, nan) for s in symbols[group]], dtype=float)  # Convert to array
+        t = np.array([sol.get(s, nan) for s in symbols[group]], dtype=float)  # Convert to array
         calibration[group] = t  # Store group values
 
     return calibration  # Return vectorized calibration
@@ -136,7 +136,7 @@ class CalibrationDict:  # Dictionary for model calibration
 
 def allocating_function(inplace_function, size_output):  # Wrap inplace function
     def new_function(*args, **kwargs):  # Create allocating wrapper
-        val = numpy.zeros(size_output)  # Allocate output array
+        val = np.zeros(size_output)  # Allocate output array
         nargs = args + (val,)  # Add output array to arguments
         inplace_function(*nargs)  # Call inplace function
         if "diff" in kwargs:  # Handle differentiation
@@ -181,7 +181,7 @@ def numdiff(fun, args):  # Compute numerical derivatives
     dvs = []  # Initialize derivative list
     for i, a in enumerate(args):  # Loop over arguments
         l_a = (a).shape[1]  # Get argument dimension
-        dv = numpy.zeros((N, l_v, l_a))  # Initialize derivatives
+        dv = np.zeros((N, l_v, l_a))  # Initialize derivatives
         nargs = list(args)  # Copy arguments
         for j in range(l_a):  # Loop over components
             xx = args[i].copy()  # Copy current argument
