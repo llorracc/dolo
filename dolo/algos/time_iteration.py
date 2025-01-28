@@ -1,12 +1,25 @@
-"""
-Time iteration solver for dynamic economic models.
+"""Time Iteration Algorithm
 
-This module implements the standard time iteration method for solving dynamic economic models.
+This module implements the time iteration method for solving dynamic economic models.
+
+The algorithm iterates backwards in time to find a stationary solution to the model's
+optimality conditions (arbitrage equations).
 Key features:
-- Solves for policy functions using fixed point iteration
-- Handles models with occasionally binding constraints
-- Supports models with discrete and continuous state spaces
-- Provides options for controlling convergence and accuracy
+- Handles both unconstrained and constrained optimization problems
+- Supports models with discrete exogenous states (Markov chains)
+- Uses cubic spline interpolation for continuous state variables
+- Implements Newton-based nonlinear equation solver
+For more details, see:
+- model_specification.md: Core model structure and equation definitions
+- finite_iteration.md: Theory behind time iteration methods
+- processes.md: Handling of exogenous processes and discretization
+The algorithm solves models specified according to model_specification.md, which defines:
+- State variables (s): Endogenous states like capital, debt
+- Control variables (x): Choice variables like consumption, labor
+- Exogenous processes (m): Shocks like productivity, preferences
+- Transition equations: How states evolve s' = g(m,s,x,m')
+- Arbitrage equations: Optimality conditions f(m,s,x,m',s',x') = 0
+The solution is a policy function x = φ(m,s) satisfying these equations.
 """
 
 import numpy  # For numerical computations
@@ -19,41 +32,36 @@ from dolo.algos.steady_state import find_deterministic_equilibrium
 
 
 def residuals_simple(f, g, s, x, dr, dprocess, parms):  # Compute arbitrage equation residuals
-    """
-    Compute residuals of arbitrage equations for time iteration.
+    """Compute residuals of the arbitrage equations.
     
-    Evaluates the arbitrage equations at each grid point and state, computing
-    expectations over future states using the discretized process.
+    For each exogenous state and each point on the endogenous grid, computes
+    the residual of the arbitrage equation by:
+    1. Getting next period's states using the transition function g
+    2. Evaluating next period's controls using the decision rule dr
+    3. Computing the arbitrage equation residual using f
+    4. Taking expectations over future exogenous states
     
     Parameters
     ----------
     f : callable
         Arbitrage equation function
     g : callable
-        State transition function
-    s : array
-        Current state values
-    x : array
-        Current control values
+        State transition function from model
+    s : ndarray
+        Current endogenous state values (N, n_s)
+    x : ndarray
+        Current control values (n_ms, N, n_x)
     dr : DecisionRule
         Current decision rule
     dprocess : Process
-        Discretized exogenous process
-    parms : array
+        Discretized process for exogenous states
+    parms : ndarray
         Model parameters
         
     Returns
     -------
-    array
-        Residuals of arbitrage equations at each point
-        
-    Notes
-    -----
-    For each current state:
-    1. Computes next period states using transition function
-    2. Evaluates policy at future states
-    3. Computes arbitrage equation residuals
-    4. Weights residuals by transition probabilities
+    ndarray
+        Residuals of arbitrage equations (n_ms, N, n_x)
     """
 
     N = s.shape[0]  # Number of grid points
@@ -100,19 +108,23 @@ def time_iteration(
     # obsolete
     with_complementarities=None,  # Deprecated option
 ) -> TimeIterationResult:
-    """
-    Find a global solution for model using backward time iteration.
-    
-    Implements the standard time iteration algorithm which iterates on the
-    residuals of the arbitrage equations until convergence. At each iteration:
-    1. Update policy function approximation
-    2. Compute residuals at each grid point
-    3. Solve for new policy values using Newton method
-    4. Check convergence of policy updates
-    
-    The algorithm handles occasionally binding constraints through a
-    complementarity solver when bounds are provided.
-    
+    """Find a global solution for ``model`` using backward time-iteration.
+
+    This algorithm iterates on the residuals of the arbitrage equations until convergence.
+    At each iteration:
+    1. Given current decision rule dr_t for controls
+    2. For each state (m,s):
+        a. Compute next period states S using transition g
+        b. Get next period controls X = dr_t(S) 
+        c. Solve arbitrage equation f(m,s,x,M,S,X) = 0 for x
+    3. Update dr_t+1 with new optimal controls x
+    4. Repeat until successive rules converge
+
+    The algorithm handles complementarity conditions (inequality constraints) by:
+    1. Checking if controls hit bounds lb ≤ x ≤ ub
+    2. Using an appropriate nonlinear solver (ncpsolve)
+    3. Modifying arbitrage equations at the bounds
+
     Parameters
     ----------
     model : Model
@@ -145,18 +157,12 @@ def time_iteration(
     Returns
     -------
     TimeIterationResult or DecisionRule
-        If details=True, returns full solution results including:
-        - Decision rule
+        If details=True, returns TimeIterationResult with:
+        - Converged decision rule
         - Number of iterations
-        - Convergence info
-        - Error metrics
-        If details=False, returns only the decision rule
-        
-    Notes
-    -----
-    The algorithm uses a Newton solver for the nonlinear equations at each
-    iteration. When constraints are present, it switches to a complementarity
-    solver that handles the bounds correctly.
+        - Complementarity info
+        - Convergence status
+        If details=False, returns just the decision rule
     """
 
     # deal with obsolete options
@@ -194,7 +200,9 @@ def time_iteration(
     exo_grid = grid["exo"]  # Grid for exogenous states
 
     mdr = DecisionRule(  # Create decision rule object
-        exo_grid, endo_grid, dprocess=dprocess, interp_method=interp_method
+        exo_grid, endo_grid, 
+        dprocess=dprocess,
+        interp_method=interp_method
     )
 
     s = mdr.endo_grid.nodes  # Get grid nodes
@@ -243,6 +251,7 @@ def time_iteration(
 
     err = 10  # Initialize error measure
     it = 0  # Initialize iteration counter
+    err_0 = numpy.nan  # Previous error
 
     if with_complementarities:  # If using bounds
         lb = lb.reshape((-1, n_x))  # Reshape bounds to match controls
@@ -288,10 +297,17 @@ def time_iteration(
 
         if with_complementarities:  # Solve with bounds if needed
             [controls, nit] = ncpsolve(
-                dfn, lb, ub, controls_0, verbose=verbit, maxit=inner_maxit
+                dfn, lb, ub, controls_0, 
+                verbose=verbit, 
+                maxit=inner_maxit
             )
         else:  # Solve without bounds
-            [controls, nit] = newton(dfn, controls_0, verbose=verbit, maxit=inner_maxit)
+            # Use Newton solver for unconstrained case
+            [controls, nit] = newton(
+                dfn, controls_0,
+                verbose=verbit,
+                maxit=inner_maxit
+            )
 
         err = abs(controls - controls_0).max()  # Compute error
 
@@ -303,7 +319,14 @@ def time_iteration(
         t_finish = time.time()  # End iteration timer
         elapsed = t_finish - t_start  # Compute iteration time
 
-        itprint.print_iteration(N=it, Error=err_0, Gain=err_SA, Time=elapsed, nit=nit)  # Print progress
+        # Print iteration info
+        itprint.print_iteration(
+            N=it,           # Iteration number
+            Error=err_0,    # Current error
+            Gain=err_SA,    # Error reduction
+            Time=elapsed,   # Iteration time
+            nit=nit         # Inner iterations
+        )
 
     controls_0 = controls.reshape(sh_c)  # Reshape solution
 

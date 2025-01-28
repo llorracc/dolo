@@ -24,7 +24,23 @@ from dolo.numeric.optimize.newton import newton  # For numerical optimization
 from dolo.numeric.optimize.ncpsolve import ncpsolve  # For complementarity problems
 
 
-def constant_policy(model):  # Create constant initial policy from calibration
+def constant_policy(model: Model) -> ConstantDecisionRule:
+    """
+    Create a constant decision rule using calibrated control values.
+    
+    This provides an initial guess for value iteration by using the
+    steady state values from the model's calibration block.
+    
+    Parameters
+    ----------
+    model : Model
+        Model with calibrated control values
+        
+    Returns
+    -------
+    ConstantDecisionRule
+        Decision rule that returns calibrated controls for any state
+    """
     return ConstantDecisionRule(model.calibration["controls"])  # Return calibrated controls
 
 
@@ -36,18 +52,37 @@ def value_iteration(
     *,
     verbose: bool = False,  #
     details: bool = True,  #
-    tol=1e-6,
-    maxit=500,
-    maxit_howard=20,
+    tol: float = 1e-6,     # Convergence tolerance
+    maxit: int = 500,      # Maximum iterations
+    maxit_howard: int = 20 # Maximum Howard improvement steps
 ) -> ValueIterationResult:
     """
     Solve for optimal value function and policy using value function iteration.
     
-    Implements the standard value function iteration algorithm with policy updates:
-    1. Start with initial guess for value function and policy
-    2. Update value function by computing expected discounted rewards
-    3. Update policy by optimizing over controls given new value function
-    4. Repeat until convergence
+    Implements the value iteration algorithm described in value_iteration.md.
+    The method works by:
+    1. Starting with an initial guess for the value function
+    2. Computing optimal controls by maximizing Bellman equation
+    3. Updating value function until convergence
+    
+    The implementation requires the following model components from model_specification.md:
+    - Transition equations (g): How states evolve
+    - Felicity function (u): Per-period rewards
+    - Value updating (v): Bellman equation structure
+    - Control bounds: Feasible control ranges
+    
+    Example usage from rbc.yaml:
+    ```yaml
+    equations:
+        transition:
+            - k[t] = (1-δ)*k[t-1] + i[t-1]
+        felicity:
+            - u[t] = c[t]^(1-γ)/(1-γ)
+        value:
+            - v[t] = u[t] + β*v[t+1]
+        controls_lb:
+            - i[t] >= 0
+    ```
     
     Parameters
     ----------
@@ -56,13 +91,13 @@ def value_iteration(
     verbose : bool, default=False
         Whether to print iteration progress
     details : bool, default=True
-        Whether to return detailed solution results
+        Return detailed results object vs just decision rules
     tol : float, default=1e-6
         Convergence tolerance for value function
     maxit : int, default=500
         Maximum number of iterations
     maxit_howard : int, default=20
-        Maximum policy iterations between value updates
+        Maximum policy improvement steps between value iterations
         
     Returns
     -------
@@ -160,6 +195,7 @@ def value_iteration(
                 bnds = [e for e in zip(lb, ub)]  # Create bounds list
 
                 def valfun(xx):  # Objective function
+                    """Negative of value from choosing controls xx at state (m,s)"""
                     return -choice_value(  # Negative for maximization
                         transition,
                         felicity,
@@ -227,33 +263,43 @@ def value_iteration(
         )
 
 
-def choice_value(transition, felicity, i_ms, s, x, drv, dprocess, parms, beta):  # Compute value of choice
+def choice_value(
+    transition, 
+    felicity, 
+    i_ms: int, 
+    s: np.ndarray, 
+    x: np.ndarray, 
+    drv: DecisionRule,
+    dprocess: DiscretizedIIDProcess,
+    parms: dict,
+    beta: float
+) -> float:
     """
-    Compute total value of a policy choice at a given state.
+    Compute value of choosing control x at state (m,s).
     
-    Combines current period reward with discounted expected future value
-    by evaluating the transition function and integrating over future states.
+    This implements the right-hand side of the Bellman equation:
+    v(m,s) = u(m,s,x) + β*E[v(M,S)|m,s,x]
     
     Parameters
     ----------
     transition : callable
-        State transition function
+        State transition function g(m,s,x,M)
     felicity : callable
-        Current period reward function
+        Per-period reward function u(m,s,x)
     i_ms : int
-        Current exogenous state index
-    s : array
-        Current endogenous state
-    x : array
-        Policy choice to evaluate
+        Index of current exogenous state
+    s : ndarray
+        Current endogenous state vector
+    x : ndarray
+        Control vector to evaluate
     drv : DecisionRule
-        Value function approximation
-    dprocess : Process
+        Current value function approximation
+    dprocess : DiscretizedIIDProcess
         Discretized exogenous process
-    parms : array
+    parms : dict
         Model parameters
     beta : float
-        Discount factor
+        Time discount factor
         
     Returns
     -------
@@ -286,6 +332,20 @@ def choice_value(transition, felicity, i_ms, s, x, drv, dprocess, parms, beta): 
 
 
 class EvaluationResult:  # Container for policy evaluation results
+    """
+    Container for results from policy evaluation.
+    
+    Attributes
+    ----------
+    solution : DecisionRule
+        Value function for given policy
+    iterations : int
+        Number of iterations taken
+    tol : float
+        Tolerance level used
+    error : float
+        Final error achieved
+    """
     def __init__(self, solution, iterations, tol, error):  # Initialize result object
         self.solution = solution  # Store optimal solution
         self.iterations = iterations  # Store iteration count
@@ -309,39 +369,43 @@ def evaluate_policy(  # Evaluate value function for given policy
     """
     Compute value function corresponding to a given policy function.
     
-    Uses policy iteration to find the value function that would result from
-    following the specified policy rule forever.
+    For a given policy function π(s), this computes the corresponding
+    value function v(s) by iterating on the Bellman equation:
+    v(s) = u(s,π(s)) + β*E[v(g(s,π(s),ε))]
+    
+    This is used as a subroutine in value_iteration() to evaluate
+    candidate policies. The evaluation uses the model's value updating
+    equation as specified in the yaml file.
     
     Parameters
     ----------
     model : Model
-        Model to evaluate
-    mdr : DecisionRule or array
+        Model with properly defined functions
+    mdr : DecisionRule
         Policy function to evaluate
     tol : float, default=1e-8
-        Convergence tolerance for value function
+        Convergence tolerance
     maxit : int, default=2000
-        Maximum number of iterations
-    grid : dict, optional
-        Custom grid specification
+        Maximum iterations
+    grid : dict, default={}
+        Optional custom grid specification
     verbose : bool, default=True
-        Whether to print iteration progress
+        Print iteration details
     dr0 : DecisionRule, optional
         Initial guess for value function
     hook : callable, optional
         Function called after each iteration
-    integration_orders : tuple, optional
-        Quadrature orders for expectations
+    integration_orders : dict, optional
+        Custom integration orders for expectations
     details : bool, default=False
-        Whether to return detailed results
+        Return detailed results
     interp_method : str, default='cubic'
         Interpolation method for value function
         
     Returns
     -------
-    DecisionRule or EvaluationResult
-        If details=False, returns the value function
-        If details=True, returns full evaluation results
+    EvaluationResult
+        Value function and convergence information
     """
 
     process = model.exogenous  # Get exogenous process
@@ -446,47 +510,56 @@ def evaluate_policy(  # Evaluate value function for given policy
         return EvaluationResult(mdrv, it, tol, err)  # Return full results
 
 
-def update_value(val, g, s, x, v, dr, drv, dprocess, parms):  # Update value function
+def update_value(
+    val: callable,
+    g: callable,
+    s: np.ndarray,
+    x: np.ndarray,
+    v: np.ndarray,
+    dr: DecisionRule,
+    drv: DecisionRule,
+    dprocess: DiscretizedIIDProcess,
+    parms: dict
+) -> np.ndarray:
     """
     Update value function by computing expectations over future states.
     
-    Computes updated values by evaluating the value function at each state,
-    taking expectations over future states according to the policy and
-    transition functions.
+    This implements the value updating step in policy evaluation:
+    v_new(m,s) = E[val(m,s,x,v,M,S,X,V)|m,s]
+    where:
+    - (m,s) is current state
+    - x = π(m,s) is current policy
+    - v is current value
+    - M is next exogenous state
+    - S = g(m,s,x,M) is next endogenous state
+    - X = π(M,S) is next policy
+    - V = v(M,S) is next value
     
     Parameters
     ----------
     val : callable
         Value function to evaluate
     g : callable
-        State transition function
-    s : array
-        Current state values
-    x : array
-        Control values from policy
-    v : array
-        Current value function values
+        State transition function from model
+    s : ndarray
+        Grid of state points
+    x : ndarray
+        Current policy values on grid
+    v : ndarray
+        Current value function on grid
     dr : DecisionRule
-        Policy function being evaluated
+        Current policy function
     drv : DecisionRule
-        Value function approximation
-    dprocess : Process
+        Current value function
+    dprocess : DiscretizedIIDProcess
         Discretized exogenous process
-    parms : array
+    parms : dict
         Model parameters
         
     Returns
     -------
-    array
-        Updated value function values at each state
-        
-    Notes
-    -----
-    For each current state:
-    1. Computes next period states using transition function
-    2. Evaluates policy at future states
-    3. Evaluates value function at future states
-    4. Takes expectation over future values
+    ndarray
+        Updated value function values on grid
     """
 
     N = s.shape[0]  # Number of grid points

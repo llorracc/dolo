@@ -268,8 +268,22 @@ def d_filt_dx(π, M_ij, S_ij, n_m, N, n_x, dumdr):  # Filter derivatives
     """
     Filter derivatives through transition matrices and policy evaluation.
     
-    Applies the filtering operation that combines transition matrices with
-    policy evaluation to implement the derivative part of policy iteration.
+    [M @ π](m,s) = E[M(m,M) @ π(M,g(m,s,x,M))]
+    
+    where E[·] is computed by discretizing the continuous state space
+    and taking weighted sums over the discrete points.
+    
+    Usage Contexts
+    -------------
+    1. Policy Updates (invert_jac):
+       - M(m,M) = (∂f/∂x)^{-1} @ ∂f/∂X
+       - π is the policy update
+       - Implements the iteration xₖ₊₁ = M @ xₖ + x₀
+    
+    2. Spectral Radius (radius_jac):
+       - Same M(m,M) as above
+       - π is the current eigenvector estimate
+       - Used in power iteration vₖ₊₁ = M @ vₖ
     
     Parameters
     ----------
