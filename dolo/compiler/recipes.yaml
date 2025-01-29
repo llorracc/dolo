@@ -83,16 +83,14 @@ dtcc:
                 - ['parameters', 0, 'p']
 
         direct_response_egm:
-
             optional: True
             recursive: True
-            target: ['controls', 0,'x']
-
+            target: ['controls', 0, 'x']
             eqs:
-                - ['exogenous',0,'m']
-                - ['poststates',0,'a']
+                - ['exogenous', 0, 'm']
+                - ['poststates', 0, 'a']
                 - ['expectations', 0, 'z']
-                - ['parameters',0,'p']
+                - ['parameters', 0, 'p']
 
         reverse_state:
 
@@ -141,4 +139,39 @@ dtcc:
             eqs:
                 - ['states',0,'s']
                 - ['controls',0,'x']
+                - ['parameters', 0, 'p']
+        # ----------------------------------------------------------------
+        # ADD THESE BLOCK DEFINITIONS TO RECOGNIZE "auxiliary_direct_egm", 
+        # "direct_response_egm", AND "reverse_state"
+        # ----------------------------------------------------------------
+
+        auxiliary_direct_egm:
+            optional: True
+            recursive: True
+            # no explicit target needed if there's a direct assignment
+            eqs:
+                - ['exogenous', 0, 'm']
+                - ['states', 0, 's']
+                - ['controls', 0, 'x']
+                - ['poststates', 0, 'a']
+                - ['parameters', 0, 'p']
+
+        reverse_state:
+            optional: True
+            recursive: True
+            target: ['states', 0, 's']
+            eqs:
+                - ['exogenous', 0, 'm']
+                - ['poststates', 0, 'a']
+                - ['controls', 0, 'x']
+                - ['parameters', 0, 'p']
+
+        direct_response_egm:
+            optional: True
+            recursive: True
+            target: ['controls', 0, 'x']
+            eqs:
+                - ['exogenous', 0, 'm']
+                - ['poststates', 0, 'a']
+                - ['expectations', 0, 'z']
                 - ['parameters', 0, 'p']
