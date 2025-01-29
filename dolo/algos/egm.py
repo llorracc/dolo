@@ -85,7 +85,14 @@ def egm(
     # Get core model functions defined in yaml equations block
     gt = model.functions['transition']  # State transition (e.g. budget constraint)
     h = model.functions['expectation']  # Expectation function (e.g. Euler equation terms)
-    τ = model.functions['direct_response']  # Policy function (e.g. consumption choice)
+    # Try to get direct_response function, fall back to direct_response_egm if not found
+    try:
+        τ = model.functions['direct_response']  # Try standard name first
+    except KeyError:
+        try:
+            τ = model.functions['direct_response_egm']  # Try alternative name
+        except KeyError:
+            raise KeyError("Model must define either 'direct_response' or 'direct_response_egm' function")
     aτ = model.functions['auxiliary_direct']  # Auxiliary policy (e.g. end-of-period assets)
 
     # Get calibrated parameters from yaml calibration block
