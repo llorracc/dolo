@@ -16,4 +16,6 @@ pkgs/urls
 setup.py
 .venv/*
 
+# Added by CDC, 20250127
 .specstory/*
+.DS_Store
