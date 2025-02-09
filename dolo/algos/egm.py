@@ -93,7 +93,7 @@ def egm(
             τ = model.functions['direct_response_egm']  # Try alternative name
         except KeyError:
             raise KeyError("Model must define either 'direct_response' or 'direct_response_egm' function")
-    aτ = model.functions['auxiliary_direct']  # Auxiliary policy (e.g. end-of-period assets)
+    aτ = model.functions['auxiliary_direct_egm']  # Auxiliary policy (e.g. end-of-period assets)
 
     # Get calibrated parameters from yaml calibration block
     p = model.calibration['parameters']  # Model parameters (e.g. β, γ, r)
