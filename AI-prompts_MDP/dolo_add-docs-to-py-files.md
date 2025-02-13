@@ -6924,7 +6924,7 @@ The goal is for a reader of the code to be able to understand:
 
 </meta prompt 1>
 <user_instructions>
-Read and apply the instructions in AIPrompts/dolo_add-docs-to-py-files.md
+Read and apply the instructions in AIPrompts/dolo_add-docs-to-py-files.md, but apply them only to the file dolo/algos/egm.py.  Leave all other files unchanged.
 
 
 </user_instructions>

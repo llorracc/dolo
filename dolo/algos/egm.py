@@ -18,7 +18,53 @@ def egm(
     dp=None,
 ):
     """
-    a_grid: (numpy-array) vector of points used to discretize poststates; must be increasing
+    Solves dynamic models using the Endogenous Grid Method (EGM).
+    
+    As described in finite_iteration.md, EGM solves consumption-savings type models
+    by working backwards from post-decision states. Key steps:
+    1. Start with a grid of post-decision states (assets)
+    2. Use model's direct_response_egm function to get optimal controls
+    3. Map back to pre-decision states using reverse_state function
+    4. Iterate until convergence
+    
+    Example from consumption_savings_iid_egm.yaml:
+    ```yaml
+    equations:
+        direct_response_egm: |
+            c[t] = cbar*(mr[t])^(-1/γ)
+        reverse_state: |
+            w[t] = a[t] + c[t]
+    ```
+    
+    Parameters
+    ----------
+    model : Model
+        Model with EGM-compatible equations (direct_response, reverse_state)
+    dr0 : DecisionRule, optional
+        Initial guess for policy function
+    verbose : bool, default=False
+        Whether to print iteration info
+    details : bool, default=True
+        Whether to return detailed results
+    a_grid : array, optional
+        Grid for post-decision states (e.g. assets). Must be 1D increasing array.
+    η_tol : float, default=1e-6
+        Convergence tolerance
+    maxit : int, default=1000
+        Maximum iterations
+    grid : Grid, optional
+        State space grid
+    dp : Process, optional
+        Discretized exogenous process
+        
+    Returns
+    -------
+    EGMResult
+        Contains:
+        - Decision rule (policy function)
+        - Number of iterations
+        - Whether solution converged
+        - Final error
     """
 
     assert len(model.symbols["states"]) == 1
