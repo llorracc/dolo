@@ -1,0 +1,3 @@
+#!/bin/bash
+
+repomix --ignore "**/*.ipynb,.git,.devcontainer,.github,.gitpod.yml,*.pyc,*.toml,numeric/**,.cursor*,AI-prompts*/**,*.sh,perturbation*,.cursor/rules/**,dolo/algos/improved_time_iteration.py,dolo/algos/bruteforce_lib.py,*models_*,notebooks,dynare*,linter.py,Untitled.ipynb,*experiments*,mkdocs.yml,*numeric*" 
