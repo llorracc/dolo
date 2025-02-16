@@ -1,169 +1,186 @@
 import yaml
-from dolo.numeric.decision_rule import DecisionRule  # Represents policy functions mapping states to controls
+from dolo.numeric.decision_rule import DecisionRule
 import numpy as np
-from interpolation.splines import eval_linear  # For interpolating policy functions on endogenous grid
-from dolo.compiler.model import Model  # Core model class that implements model_specification.md concepts
-from .results import EGMResult  # Container for EGM solution results
+from interpolation.splines import eval_linear
+from dolo.compiler.model import Model
+from .results import EGMResult
+
 
 def egm(
-    model: Model,  # Economic model following model_specification.md format
-    dr0: DecisionRule = None,  # Initial guess for policy function
-    verbose: bool = False,  # Print convergence info
-    details: bool = True,  # Print convergence info
+    model: Model,
+    dr0: DecisionRule = None,
+    verbose: bool = False,
+    details: bool = True,
     a_grid=None,
     η_tol=1e-6,
     maxit=1000,
     grid=None,
     dp=None,
-) -> EGMResult:
+):
     """
-    Solves for optimal policy using the Endogenous Grid Method (EGM).
+    Solves dynamic models using the Endogenous Grid Method (EGM).
     
-    This implements Carroll's (2006) EGM for solving consumption-savings problems.
-    The method works by:
-    1. Starting with a grid of end-of-period assets (endogenous grid)
-    2. Computing optimal consumption for each gridpoint using Euler equation
-    3. Recovering beginning-of-period assets (exogenous grid)
+    As described in finite_iteration.md, EGM solves consumption-savings type models
+    by working backwards from post-decision states. Key steps:
+    1. Start with a grid of post-decision states (assets)
+    2. Use model's direct_response_egm function to get optimal controls
+    3. Map back to pre-decision states using reverse_state function
+    4. Iterate until convergence
     
-    The implementation follows the model specification in model_specification.md,
-    particularly the sections on:
-    - State variables (s) and controls (x)
-    - Transition equations (g)
-    - Expectation equations (h)
-    - Direct response functions (d)
-    
-    Example usage from consumption_savings_iid_egm_mdp.yaml:
+    Example from consumption_savings_iid_egm.yaml:
     ```yaml
     equations:
-        transition:
-            - w[t] = exp(y[t]) + (w[t-1]-c[t-1])*r
-        expectation: |
-            mr[t] = β*( c[t+1]/c[t] )^(-γ)*r
         direct_response_egm: |
-            c[t] = c[t]*(mr[t])^(-1/γ)
+            c[t] = cbar*(mr[t])^(-1/γ)
+        reverse_state: |
+            w[t] = a[t] + c[t]
     ```
     
     Parameters
     ----------
     model : Model
-        Dolo model with properly defined transition, expectation and direct_response functions
+        Model with EGM-compatible equations (direct_response, reverse_state)
     dr0 : DecisionRule, optional
-        Initial guess for decision rule. If None, starts with default rule
-    verbose : bool, default=True
-        If True, prints convergence information
+        Initial guess for policy function
+    verbose : bool, default=False
+        Whether to print iteration info
     details : bool, default=True
-        If True, prints convergence information
-    a_grid : array-like, optional
-        Array-like object representing the endogenous grid
+        Whether to return detailed results
+    a_grid : array, optional
+        Grid for post-decision states (e.g. assets). Must be 1D increasing array.
     η_tol : float, default=1e-6
-        Stopping criterion for value function iteration
+        Convergence tolerance
     maxit : int, default=1000
-        Maximum number of iterations
-    grid : array-like, optional
-        Array-like object representing the exogenous grid
-    dp : DiscretizedProcess, optional
-        Discretized process object
+        Maximum iterations
+    grid : Grid, optional
+        State space grid
+    dp : Process, optional
+        Discretized exogenous process
         
     Returns
     -------
     EGMResult
-        Object containing:
+        Contains:
         - Decision rule (policy function)
         - Number of iterations
-        - Whether convergence was achieved
-        - Final change in policy function
+        - Whether solution converged
+        - Final error
     """
 
-    # Discretize exogenous process (e.g. income shocks in consumption-savings)
-    dp = model.exogenous.discretize()  # Converts continuous process to discrete grid
-    
-    # Get model dimensions from symbols defined in yaml
-    n_m = dp.n_nodes  # Number of exogenous shock nodes (e.g. income states)
-    n_s = len(model.symbols['states'])  # Number of state variables (e.g. assets)
-    n_x = len(model.symbols['controls'])  # Number of control variables (e.g. consumption)
+    assert len(model.symbols["states"]) == 1
+    assert (
+        len(model.symbols["controls"]) == 1
+    )  # we probably don't need this restriction
 
-    # Get core model functions defined in yaml equations block
-    gt = model.functions['transition']  # State transition (e.g. budget constraint)
-    h = model.functions['expectation']  # Expectation function (e.g. Euler equation terms)
-    τ = model.functions['direct_response']  # Policy function (e.g. consumption choice)
-    aτ = model.functions['auxiliary_direct']  # Auxiliary policy (e.g. end-of-period assets)
+    from dolo.numeric.processes import IIDProcess
 
-    # Get calibrated parameters from yaml calibration block
-    p = model.calibration['parameters']  # Model parameters (e.g. β, γ, r)
-    
-    # Setup computational grids following domain block in yaml
-    endo_grid = model.get_grid()  # Grid for endogenous states (e.g. asset holdings)
-    exo_grid = dp.grid  # Grid for exogenous states (e.g. income levels)
-    
-    # Initialize arrays for EGM iteration
-    z = np.zeros((n_m, n_s, n_x))  # Expected marginal values (e.g. expected marginal utility)
-    xa = np.zeros((n_m, n_s, n_x))  # Policy on endogenous grid (e.g. consumption)
-    sa = np.zeros((n_m, n_s, n_x))  # States on endogenous grid (e.g. assets)
+    iid_process = isinstance(model.exogenous, IIDProcess)
 
-    # Initialize convergence tracking
-    it = 0  # Iteration counter
-    η = 1.0  # Maximum policy function change
-    
-    # Get initial guess or create new decision rule
-    if dr0 is None:
-        drfut = DecisionRule(exo_grid, endo_grid, dprocess=dp)  # Default rule
-    else:
-        drfut = dr0  # Use provided guess
-
-    # Main EGM iteration loop
-    while it < maxit and η > η_tol:
-        
-        xa_old = xa.copy()  # Store previous policy for convergence check
-        
-        # Loop over exogenous shock nodes (e.g. income states)
-        for i_m in range(n_m):
-            m = dp.node(i_m)  # Current exogenous state (e.g. income)
-            
-            # Loop over possible future shock realizations
-            for i_M in range(dp.n_inodes(i_m)):
-                w = dp.iweight(i_m, i_M)  # Probability of future shock
-                M = dp.inode(i_m, i_M)  # Future exogenous state
-                
-                # Get next period's states using transition function
-                S = gt(m, sa, M, p)  # Next period state variables
-                
-                if verbose:
-                    print(f"Iteration {it}, Node {i_m}, Future {i_M}")
-                    
-                # Get future period's policy from current guess
-                X = drfut(i_M, S)  # Future period controls
-                
-                # Update expected marginal values using expectation function
-                z[i_m, :, :] += w * h(M, S, X, p)  # Accumulate expectations
-            
-            # Compute optimal policy using direct response function
-            xa[i_m, :, :] = τ(m, sa, z[i_m, :, :], p)  # Get policy
-            
-            # Update endogenous states using auxiliary function
-            sa[i_m, :, :] = aτ(m, sa, xa[i_m, :, :], p)
-            
-        # Check convergence using maximum policy function change
-        η = np.max(np.abs(xa - xa_old))
-        
+    def vprint(t):
         if verbose:
-            print(f"Iteration {it}: max policy change = {η}")
-            
-        it += 1
+            print(t)
 
-    # Create final decision rule object with cubic interpolation
+    p = model.calibration["parameters"]
+
+    if grid is None and dp is None:
+        grid, dp = model.discretize()
+
+    s = grid["endo"].nodes
+
+    funs = model.__original_gufunctions__
+    h = funs["expectation"]
+    gt = funs["half_transition"]
+    τ = funs["direct_response_egm"]
+    aτ = funs["reverse_state"]
+    lb = funs["arbitrage_lb"]
+    ub = funs["arbitrage_ub"]
+
+    if dr0 is None:
+        x0 = model.calibration["controls"]
+        dr0 = lambda i, s: x0[None, :].repeat(s.shape[0], axis=0)
+
+    n_m = dp.n_nodes
+    n_x = len(model.symbols["controls"])
+
+    if a_grid is None:
+        raise Exception("You must supply a grid for the post-states.")
+
+    assert a_grid.ndim == 1
+    a = a_grid[:, None]
+    N_a = a.shape[0]
+
+    N = s.shape[0]
+
+    n_h = len(model.symbols["expectations"])
+
+    xa = np.zeros((n_m, N_a, n_x))
+    sa = np.zeros((n_m, N_a, 1))
+    xa0 = np.zeros((n_m, N_a, n_x))
+    sa0 = np.zeros((n_m, N_a, 1))
+
+    z = np.zeros((n_m, N_a, n_h))
+
+    if verbose:
+        headline = "|{0:^4} | {1:10} |".format("N", " Error")
+        stars = "-" * len(headline)
+        print(stars)
+        print(headline)
+        print(stars)
+
+    for it in range(0, maxit):
+
+        if it == 0:
+            drfut = dr0
+
+        else:
+
+            def drfut(i, ss):
+                if iid_process:
+                    i = 0
+                m = dp.node(i)
+                l_ = lb(m, ss, p)
+                u_ = ub(m, ss, p)
+                x = eval_linear((sa0[i, :, 0],), xa0[i, :, 0], ss)[:, None]
+                x = np.minimum(x, u_)
+                x = np.maximum(x, l_)
+                return x
+
+        z[:, :, :] = 0
+
+        for i_m in range(n_m):
+            m = dp.node(i_m)
+            for i_M in range(dp.n_inodes(i_m)):
+                w = dp.iweight(i_m, i_M)
+                M = dp.inode(i_m, i_M)
+                S = gt(m, a, M, p)
+                print(it, i_m, i_M)
+                X = drfut(i_M, S)
+                z[i_m, :, :] += w * h(M, S, X, p)
+            xa[i_m, :, :] = τ(m, a, z[i_m, :, :], p)
+            sa[i_m, :, :] = aτ(m, a, xa[i_m, :, :], p)
+
+        if it > 1:
+            η = abs(xa - xa0).max() + abs(sa - sa0).max()
+        else:
+            η = 1
+
+        vprint("|{0:4} | {1:10.3e} |".format(it, η))
+
+        if η < η_tol:
+            break
+
+        sa0[...] = sa
+        xa0[...] = xa
+
+    # resample the result on the standard grid
+    endo_grid = grid["endo"]
+    exo_grid = grid["exo"]
     mdr = DecisionRule(exo_grid, endo_grid, dprocess=dp, interp_method="cubic")
-    
-    # Set policy values in decision rule
+
     mdr.set_values(
         np.concatenate([drfut(i, s)[None, :, :] for i in range(n_m)], axis=0)
     )
 
-    # Return results with solution and diagnostics
-    return EGMResult(
-        mdr,  # Final decision rule (policy function)
-        it,   # Number of iterations
-        dp,   # Discretized process
-        (η < η_tol),  # Convergence achieved
-        η_tol,  # Tolerance used
-        η      # Final policy change
-    ) 
+    sol = EGMResult(mdr, it, dp, (η < η_tol), η_tol, η)
+
+    return sol
