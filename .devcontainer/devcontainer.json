@@ -2,6 +2,7 @@
     "extensions": [
 		"ms-python.python",
 		"ms-python.vscode-pylance",
+		"ms-toolsai.jupyter",
 		"albop.dolo-language"
 	],
     "settings": {
