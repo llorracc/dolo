@@ -1,0 +1,27 @@
+{
+  "perplexity": {
+    "model": "sonar-pro",
+    "maxTokens": 8000
+  },
+  "gemini": {
+    "model": "gemini-2.0-pro-exp-02-05",
+    "maxTokens": 10000
+  },
+  "tokenCount": {
+    "encoding": "o200k_base"
+  },
+  "browser": {
+    "defaultViewport": "1280x720",
+    "timeout": 30000,
+    "stagehand": {
+      "env": "LOCAL",
+      "headless": true,
+      "verbose": 1,
+      "debugDom": false,
+      "enableCaching": false,
+      "model": "claude-3-5-sonnet-latest", // For Anthropic provider
+      "provider": "anthropic", // or "openai"
+      "timeout": 30000
+    }
+  }
+}
