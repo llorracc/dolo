@@ -51,7 +51,7 @@ a_grid = np.linspace(0.1, 10, 10)
 # - Uses dr0 (final period policy c(w)=w) to solve for previous period
 # - Returns EGMResult object containing only decision rules, not value functions
 # - Requires maxit >= 1 for algorithm to work
-sol = egm(model, dr0=dr0, a_grid=a_grid, verbose=True, maxit=1)
+sol = egm_mdp(model, dr0=dr0, a_grid=a_grid, verbose=True, maxit=1)
 
 """
 The EGMResult object returned by egm() has the following attributes:
