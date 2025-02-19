@@ -4,7 +4,7 @@ symbols:
     expectations: [mr]
     poststates: [a]
     controls: [c]
-    parameters: [β, γ, σ, ρ, r, cbar]
+    parameters: [β, γ, σ, ρ, r]
 
 equations:
 
@@ -24,10 +24,10 @@ equations:
         w[t] = a[t] + c[t]
 
     expectation: |
-        mr[t] = β*( c[t+1]/cbar )^(-γ)*r
+        mr[t] = β*( c[t+1] )^(-γ)*r
 
     direct_response_egm: |
-        c[t] = cbar*(mr[t])^(-1/γ)
+        c[t] = (mr[t])^(-1/γ)
 
 calibration:
     β: 0.96
@@ -35,7 +35,6 @@ calibration:
     σ: 0.1
     ρ: 0.0
     r: 1.02
-    cbar: c
 
     w: 1.0
     ξ: 0.0
@@ -51,3 +50,4 @@ exogenous: !UNormal
 options:
     grid: !Cartesian
         orders: [100]
+        bounds: [[0.0, 4.0]]
