@@ -1,46 +1,269 @@
-<!-- Existing header or metadata, unchanged... -->
+// 2025-01-27: Add docs to py files; Repo Prompt: file tree, [Engineer], dolo_add-docs-to-py-files.md
+// conda activate dolo-dev, cursor
 
-# Instructions for Adding Documentation to python codebase Without Changing Functionality
+Use @Docs/dolo, follow the instructions below
+<file_tree>
 
-Below are instructions for adding comments to the code in the codebase. These steps must be followed **without altering** the code's functional or structural elements—**only** documentation (inline comments and docstrings) can be added.
+├── mkdocs.yml
+├── LICENSE
+├── bin
+├── ├── dolo-lint
+├── └── dolo
+├── Untitled.ipynb
+├── experiments
+├── └── python_self_contained.py
+├── pyproject.toml
+├── .specstory
+├── └── history
+├── └── ├── .what-is-this.md
+├── └── └── documenting-dolo-project-python-files.md
+├── docs
+├── ├── modeling_language.md
+├── ├── finite_iteration.md
+├── ├── inspect.md
+├── ├── processes.md
+├── ├── value_iteration.md
+├── ├── model_api.md
+├── ├── perturbation.md
+├── ├── model_specification.md
+├── ├── time_iteration.md
+├── ├── perfect_foresight.md
+├── ├── steady_state.md
+├── ├── index.md
+├── ├── simulation.md
+├── ├── installation.md
+├── └── parameterized_expectations.md
+├── .devcontainer
+├── ├── Dockerfile
+├── └── devcontainer.json
+├── AI-prompts
+├── └── dolo_add-docs-to-py-files.md
+├── TODO
+├── README.md
+├── examples
+├── ├── models_
+├── ├── ├── rbc_iid_ar1.yaml
+├── ├── ├── rbc.yaml
+├── ├── ├── rbc2.yaml
+├── ├── ├── rbc_mc.yaml
+├── ├── ├── rbc_product_newstyle.yaml
+├── ├── ├── rbc_iid.yaml
+├── ├── ├── rbc_product.yaml
+├── ├── ├── rbc_taxes.yaml
+├── ├── ├── open_economy_1d.yaml
+├── ├── ├── rbc_mixture.yaml
+├── ├── ├── rbc_condition.yaml
+├── ├── ├── capital.yaml
+├── ├── ├── NK_dsge.yaml
+├── ├── ├── sudden_stop.yaml
+├── ├── ├── Figv4_1191.yaml
+├── ├── ├── open_economy.yaml
+├── ├── └── rbc_ar1.yaml
+├── ├── models
+├── ├── ├── rbc.yaml
+├── ├── ├── rbc_mc.yaml
+├── ├── ├── rbc_iid.yaml
+├── ├── ├── rmt3_ch11.yaml
+├── ├── ├── consumption_savings_iid.yaml
+├── ├── └── rbc_ar1.yaml
+├── ├── dynare_modfiles
+├── ├── ├── ramsey.mod
+├── ├── ├── predetermined_variables.mod
+├── ├── ├── ramst.mod
+├── ├── ├── t_lag2_checka.mod
+├── ├── ├── t_sgu_ex1.mod
+├── ├── ├── t_lag2a.mod
+├── ├── ├── example1_use_dll.mod
+├── ├── ├── ramst_normcdf.mod
+├── ├── ├── t_lag2b.mod
+├── ├── ├── ramst2.mod
+├── ├── ├── ramst_initval_file.mod
+├── ├── ├── t_periods.mod
+├── ├── ├── ramst_a.mod
+├── ├── ├── osr_example.mod
+├── ├── ├── example1_varexo_det.mod
+├── ├── ├── test_matlab.mod
+├── ├── ├── t_lag2_check.mod
+├── ├── ├── t_lag2.mod
+├── ├── ├── example1.mod
+├── ├── ├── variance_0.mod
+├── ├── ├── example2.mod
+├── ├── └── t_periods_a.mod
+├── ├── .ipynb_checkpoints
+├── ├── └── rbc_model-checkpoint.ipynb
+├── ├── notebooks
+├── ├── ├── consumption_savings.ipynb
+├── ├── ├── rmt3_ch11.ipynb
+├── ├── ├── rbc_perfect_foresight.ipynb
+├── ├── ├── .ipynb_checkpoints
+├── ├── ├── ├── bufferstock-checkpoint.py
+├── ├── ├── ├── StickyE-RA-PermNorm-checkpoint.ipynb
+├── ├── ├── ├── BufferStockTheory-Problems-and-Solutions-checkpoint.py
+├── ├── ├── ├── StickyE-RA-checkpoint.py
+├── ├── ├── ├── rbc_model_cdc-checkpoint.py
+├── ├── ├── ├── BufferStock-HARK-vs-dolo-checkpoint.ipynb
+├── ├── ├── ├── rbc_model_Do-Not-Optimize-On-Labor-checkpoint.ipynb
+├── ├── ├── ├── rbc_model-checkpoint.ipynb
+├── ├── ├── ├── bufferstock-checkpoint.ipynb
+├── ├── ├── ├── rbc_model_cdc-checkpoint.ipynb
+├── ├── ├── ├── bufferstock_debug-checkpoint.ipynb
+├── ├── ├── ├── capital-ramsey-friedman-checkpoint.ipynb
+├── ├── ├── ├── capital-ramsey-friedman-k-not-m-checkpoint.ipynb
+├── ├── ├── ├── bufferstock_debug-checkpoint.py
+├── ├── ├── ├── rmt3_ch11-checkpoint.ipynb
+├── ├── ├── ├── Friedman-RA-checkpoint.ipynb
+├── ├── ├── ├── BufferStock-HARK-vs-dolo-checkpoint.py
+├── ├── ├── ├── rbc_perfect_foresight-checkpoint.ipynb
+├── ├── ├── ├── consumption_savings-checkpoint.ipynb
+├── ├── ├── ├── StickyE-RA-Levels-checkpoint.py
+├── ├── ├── ├── BufferStockTheory-Problems-and-Solutions-checkpoint.ipynb
+├── ├── ├── ├── StickyE-RA-Levels-checkpoint.ipynb
+├── ├── ├── └── sudden_stop-checkpoint.ipynb
+├── ├── ├── rbc_model.ipynb
+├── ├── └── sudden_stop.ipynb
+├── ├── models_with_errors
+├── ├── └── rbc_fuzzy.yaml
+├── └── notebooks_docs-added
+├── └── ├── consumption_savings.py
+├── └── ├── rbc_model.py
+├── └── ├── rbc_perfect_foresight.py
+├── └── ├── rmt3_ch11.py
+├── └── └── sudden_stop.py
+├── .github
+├── └── workflows
+├── └── ├── ci.yaml
+├── └── ├── mkdocs.yml
+├── └── └── publish-to-pypi.yml
+├── doc
+├── .gitpod.yml
+├── dolo
+├── ├── misc
+├── ├── ├── termcolor.py
+├── ├── ├── multimethod.py
+├── ├── ├── groot.py
+├── ├── ├── itprinter.py
+├── ├── ├── __init__.py
+├── ├── ├── display.py
+├── ├── ├── timing.py
+├── ├── ├── caching.py
+├── ├── ├── dprint.py
+├── ├── ├── graphs.py
+├── ├── ├── decorators.py
+├── ├── └── .#termcolor.py
+├── ├── config.py
+├── ├── tests
+├── ├── ├── test_formula_evaluation.py
+├── ├── ├── test_grid.py
+├── ├── ├── test_irf.py
+├── ├── ├── test_egm.py
+├── ├── ├── test_iid_processes.py
+├── ├── ├── test_linter.py
+├── ├── ├── __init__.py
+├── ├── ├── test_ergodic.py
+├── ├── ├── test_customdr.py
+├── ├── ├── test_import.py
+├── ├── ├── test_grids.py
+├── ├── ├── test_complementarity_problems.py
+├── ├── ├── test_caching.py
+├── ├── ├── test_model_import.py
+├── ├── └── test_serial_ncpsolve.py
+├── ├── __init__.py
+├── ├── algos
+├── ├── ├── egm.py
+├── ├── ├── improved_time_iteration.py
+├── ├── ├── fb.py
+├── ├── ├── steady_state.py
+├── ├── ├── results.py
+├── ├── ├── ergodic.py
+├── ├── ├── simulations.py
+├── ├── ├── __init__.py
+├── ├── ├── value_iteration.py
+├── ├── ├── perturbations_higher_order.py
+├── ├── ├── bruteforce_lib.py
+├── ├── ├── invert.py
+├── ├── ├── time_iteration.py
+├── ├── ├── perfect_foresight.py
+├── ├── ├── commands.py
+├── ├── └── perturbation.py
+├── ├── numeric
+├── ├── ├── misc.py
+├── ├── ├── grids.py
+├── ├── ├── decision_rule.py
+├── ├── ├── optimize
+├── ├── ├── ├── newton.py
+├── ├── ├── ├── __init__.py
+├── ├── ├── └── ncpsolve.py
+├── ├── ├── serial_operations.py
+├── ├── ├── taylor_expansion.py
+├── ├── ├── __init__.py
+├── ├── ├── distribution.py
+├── ├── ├── tensor.py
+├── ├── ├── processes.py
+├── ├── ├── matrix_equations.py
+├── ├── ├── discretization
+├── ├── ├── ├── quadrature.py
+├── ├── ├── ├── discretization.py
+├── ├── ├── └── __init__.py
+├── ├── ├── extern
+├── ├── ├── ├── qz.py
+├── ├── ├── ├── __init__.py
+├── ├── ├── └── lmmcp.py
+├── ├── └── filters.py
+├── ├── linter.py
+├── └── compiler
+├── └── ├── eval_formula.py
+├── └── ├── misc.py
+├── └── ├── model_import.py
+├── └── ├── recipes.yaml
+├── └── ├── __init__.py
+├── └── ├── factories.py
+├── └── ├── model.py
+├── └── ├── recipes.py
+├── └── ├── objects.py
+├── └── └── derivatives.py
+└── .#.gitignore
+</file_tree>
 
----
+<file_contents>
+File: docs/modeling_language.md
+```md
+The dolo language
+=================
 
-## Scope of Edits
+The easiest way to code a model in dolo consists in using specialized
+Yaml files also referred to as dolo model files.
 
-**Allowed**:
-1. Adding inline comments to currently uncommented lines (always use `# ...` at the end of lines, or after existing code).
-2. Adding docstrings immediately below each function or class definition *only if* it lacks a docstring.
-3. Citing relevant `.md` documentation in `docs/` or usage samples in `examples/`.
+YAML format
+-----------
 
-**Forbidden**:
-1. Changing any existing comment text (you must leave them exactly as-is).
-2. Removing or altering any lines of code (including whitespace or blank lines).
-3. Adding or removing imports, renaming variables, or adjusting logic flow.
-4. Changing function signatures or how they behave.
-5. Modifying any code that controls functionality in `egm.py`.
-6. Changing any existing docstring, except by appending material to the end
+YAML stands for Yet Another Markup Language. It is a serialization
+language that allows complex data structures in a human-readable way.
+Atomic elements are floats, integers and strings. An ordered list can be
+defined by separating elements with commas and enclosing them with
+squere brackets:
 
----
+``` yaml
+[1,2,3]
+```
 
-## Step-by-Step Process
+Equivalently, it can be done on several line, by prepending
+[-]{.title-ref} to each line
 
-1. **PHASE 1: Inline Comments**  
-   - For each line lacking a comment, append a *short* inline comment explaining what the line does.  
-   - Retain existing comments unchanged.  
-   - **Do not add** or remove lines, reorder lines, or perform ANY code modifications.
+``` {.yaml}
+- 'element'
+- element         # quotes are optional there is no ambiguity
+- third element   # this is interpreted as ``'third element'``
+```
 
-2. **PHASE 2: Docstrings**  
-   - Immediately after each function or class definition that does **not** already have a docstring, add a suitable docstring referencing relevant docs.  
-   - Provide usage examples by referencing any place in `examples/models/` or `examples/notebooks_py/` that calls the method, if applicable.  
-   - As before, do **not** delete or change any line of functional code. Only insert docstrings on lines that do **not** exist (i.e., right below the `def` or `class` statement) so that the **total line count does not change**.
+Associative arrays map keys to (simple strings to arbitrary values) as
+in the following example:
 
-3. **Verification**  
-   - Ensure each import statement has a short inline comment describing its purpose.  
-   - Ensure each function now has a docstring.  
-   - No line of the original code is removed or altered. No new functional code is introduced.
+``` {.yaml}
+{age: 18, name: peter}
+```
 
----
+Mappings can also be defined on severaly lines, and as in Python,
+structures can be nested by using indentation (use spaces no tabs):
 
 ``` {.yaml}
 age: 18
@@ -6635,19 +6858,18 @@ def get_factory(model, eq_type: str, tshift: int = 0):
 ```
 </file_contents>
 
-<meta prompt 1 = "dolo_add-docs-to-py-files_egm-only">
+<meta prompt 1 = "dolo_add-docs-to-py-files">
 You are an experienced software engineer who has been tasked with adding documentation to the python code in the ‘dolo’ project.
+
+PHASE 0:
 
 PHASE 1:
 Begin by thoroughly understanding the structure of the dolo package, with a particular emphasis on understanding the relationship between the documentation found in the dolo/docs directory about how to use the package, and the implementation in the dolo directory and the examples, with particular focus on the examples in examples/notebooks_docs-added.
 
-Using that understanding, add inline comments (that is, comments that do not change the number of lines in the file) to all python files in the subdirectories of dolo/algos, ignoring only files named `__init__.py`.  In this phase, do not make ANY changes that would change the number of lines in the file (like, do not add or delete whitespace lines).  If there is already a comment, its content should be preserved exactly as-is; do not add anything to already-commented lines.
+Using that understanding, add inline comments (that is, comments that do not change the number of lines in the file) to all python files in the subdirectories of dolo/dolo, ignoring only files named `__init__.py`.  In this phase, do not make any changes that would change the number of lines in the file (like, do not add or delete whitespace lines).  If there is already a comment, its content should be preserved exactly as-is; do not add anything to already-commented lines.
 
 Process for commenting each file:
 1. First read and understand the entire file thoroughly
-   - Make sure you understand how it relates to the documentation in dolo/docs
-   - Make sure you understand the purpose of each function
-   - Make sure you understand the meaning of each non-trivial line of code
 2. Identify all lines requiring comments
 3. Plan appropriate comments that explain:
    - The purpose of each function
@@ -6661,6 +6883,7 @@ Process for commenting each file:
    d. Checking every return statement has a comment
    e. Checking every operation has a comment
 6. Only proceed to the next file after confirming ALL lines have appropriate comments
+
 
 
 Important rules for adding comments:
@@ -6688,7 +6911,7 @@ The second line of 'commands.py' is blank
 
 
 PHASE 2:
-After you have added the inline comments to each file, you can add docstrings for each function in the file that does not already have one.  The docstrings should make explicit reference to the documentation and to other relevant parts of the codebase.  If there are instances of the function being used in any file anywhere in directory tree examples/models/ or models_/, make an excerpt from the example that illustrates the usage as found in that file.
+After you have added the inline comments to each file, you can add docstrings for each function in the file.  The docstrings should make explicit reference to the documentation and to other relevant parts of the codebase.  If there are instances of the function being used in any file anywhere in directory tree dolo/examples/models/ or dolo/examples/models_/ or in dolo/examples/notebooks_docs-added/, make an excerpt from the example that illustrates the usage as found in that file.
 
 The goal is for a reader of the code to be able to understand:
 1. How (if at all) the code line is related to high-level concepts in the documentation (like ‘state variables’)
@@ -6697,11 +6920,7 @@ The goal is for a reader of the code to be able to understand:
 
 </meta prompt 1>
 <user_instructions>
-Read and apply the instructions in AIPrompts/dolo_add-docs-to-py-files_egm-only.md, but apply them only to the file dolo/algos/egm.py.  Leave all other files unchanged.
+Read and apply the instructions in AIPrompts/dolo_add-docs-to-py-files.md, but apply them only to the file dolo/algos/egm.py.  Leave all other files unchanged.
 
 
 </user_instructions>
-By following these refined instructions, you will enhance the `egm.py` file with
-thorough documentation while preserving behavior and structure **exactly**. This
-ensures the solution remains functionally identical, with only
-documentation added.

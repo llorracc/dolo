@@ -1,6 +1,6 @@
 <!-- Existing header or metadata, unchanged... -->
 
-# Updated Instructions for Adding Documentation to `egm.py` Without Changing Functionality
+# Instructions for Adding Documentation to `egm.py` Without Changing Functionality
 
 Below is a refined version of the instructions for editing `dolo/algos/egm.py`. These steps must be followed **without altering** the code's functional or structural elements—**only** documentation (inline comments and docstrings) can be added.
 
