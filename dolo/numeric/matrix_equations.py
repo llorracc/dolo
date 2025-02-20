@@ -1,13 +1,4 @@
-"""
-Matrix equation solvers for dynamic economic models.
 
-This module provides numerical methods for solving various types of matrix equations
-that arise in economic modeling, including:
-- Linear systems
-- Sylvester equations 
-- Lyapunov equations
-- Riccati equations
-"""
 
 from dolo.numeric.tensor import sdot, mdot  # For matrix operations in perturbation methods
 
@@ -18,47 +9,6 @@ TOL = 1e-10  # Tolerance for numerical convergence
 
 # credits : second_order_solver is adapted from Sven Schreiber's port of Uhlig's Toolkit.
 def second_order_solver(FF, GG, HH, eigmax=1.0 + 1e-6):  # Solves second-order perturbation equations
-    """
-    Solves second-order perturbation equations for dynamic models.
-    
-    This solver implements a generalized Schur (QZ) decomposition method adapted from 
-    Uhlig's Toolkit to find policy functions for second-order approximations.
-    
-    Parameters
-    ----------
-    FF : array_like
-        First-order derivatives matrix of the model equations
-    GG : array_like
-        Transition matrix for state variables
-    HH : array_like
-        Second-order derivatives matrix
-    eigmax : float, optional
-        Maximum eigenvalue threshold for stability (default: 1.0 + 1e-6)
-        
-    Returns
-    -------
-    eigval : array
-        Eigenvalues from the QZ decomposition
-    PP : array
-        Policy function matrix mapping states to controls
-        
-    Notes
-    -----
-    Adapted from Sven Schreiber's port of Uhlig's Toolkit
-    The algorithm:
-    1. Forms augmented matrices combining first and second-order terms
-    2. Applies QZ decomposition to find stable eigenspace
-    3. Extracts policy function from eigenvectors
-    4. Verifies solution is real-valued
-    
-    The eigmax parameter determines which eigenvalues are considered stable.
-    Values larger than eigmax are treated as unstable roots.
-    
-    References
-    ----------
-    Adapted from Harald Uhlig's "A Toolkit for Analyzing Nonlinear Dynamic
-    Stochastic Models Easily" via Sven Schreiber's Python port.
-    """
 
     # from scipy.linalg import qz
     from dolo.numeric.extern.qz import qzordered  # For generalized Schur decomposition
@@ -111,37 +61,6 @@ def second_order_solver(FF, GG, HH, eigmax=1.0 + 1e-6):  # Solves second-order p
 
 
 def solve_sylvester_vectorized(*args):  # Solve vectorized Sylvester equation
-    """
-    Solves a vectorized form of the Sylvester matrix equation.
-    
-    This function solves equations of the form:
-        sum(kron(A_i, B_i.T)) * vec(X) = -vec(K)
-    where kron is the Kronecker product and vec vectorizes a matrix.
-    
-    Parameters
-    ----------
-    *args : tuple of array pairs and final term
-        Sequence of (A_i, B_i) matrix pairs followed by K matrix
-        
-    Returns
-    -------
-    array
-        Solution matrix X reshaped from the vectorized solution
-        
-    Notes
-    -----
-    The algorithm:
-    1. Vectorizes the K matrix into a column vector
-    2. Forms the coefficient matrix using Kronecker products
-    3. Solves the resulting linear system
-    4. Reshapes the solution back into matrix form
-    
-    Examples
-    --------
-    >>> A1, B1 = np.eye(2), np.ones((2,2))
-    >>> K = np.array([[1,2],[3,4]])
-    >>> X = solve_sylvester_vectorized((A1,B1), K)
-    """
     from numpy import kron  # For Kronecker product operations
     from numpy.linalg import solve  # For linear system solution
 
@@ -155,33 +74,10 @@ def solve_sylvester_vectorized(*args):  # Solve vectorized Sylvester equation
 
 
 def solve_sylvester(A, B, C, D, Ainv=None, method="linear"):  # Solve generalized Sylvester equation
-    """
-    Solves a generalized Sylvester matrix equation.
-    
-    Solves equations of the form:
-        A X + B X [C,...,C] + D = 0
-    where X is a multilinear function whose dimension is determined by D.
-    
-    Parameters
-    ----------
-    A : array_like
-        First coefficient matrix
-    B : array_like
-        Second coefficient matrix
-    C : array_like
-        Repeated coefficient matrix
-    D : array_like
-        Constant term
-    Ainv : array_like, optional
-        Inverse of A matrix (computed if not provided)
-    method : {'linear', 'slycot'}, optional
-        Solution method to use (default: 'linear')
-        
-    Returns
-    -------
-    array
-        Solution matrix X
-    """
+    # Solves equation : A X + B X [C,...,C] + D = 0
+    # where X is a multilinear function whose dimension is determined by D
+    # inverse of A can be optionally specified as an argument
+
     n_d = D.ndim - 1  # Get number of dimensions
     n_v = C.shape[1]  # Get number of variables
 
@@ -222,34 +118,6 @@ def solve_sylvester(A, B, C, D, Ainv=None, method="linear"):  # Solve generalize
 
 
 class BKError(Exception):  # Custom exception for Blanchard-Kahn errors
-    """
-    Exception raised for Blanchard-Kahn condition violations.
-    
-    The Blanchard-Kahn conditions are necessary for the existence and uniqueness
-    of a stable solution in linear rational expectations models.
-    
-    Parameters
-    ----------
-    type : str
-        Type of Blanchard-Kahn violation:
-        - 'too_many_stable' : More stable eigenvalues than predetermined variables
-        - 'too_few_stable' : Fewer stable eigenvalues than predetermined variables
-        - 'rank' : Rank condition failure
-        
-    Notes
-    -----
-    The Blanchard-Kahn conditions require that:
-    1. The number of stable eigenvalues equals the number of predetermined variables
-    2. A rank condition is satisfied for the system matrices
-    
-    These conditions ensure that the model has a unique, stable solution path.
-    When violated, the model either has no stable solution or infinitely many.
-    
-    Examples
-    --------
-    >>> raise BKError('too_many_stable')  # When system is overdetermined
-    >>> raise BKError('too_few_stable')   # When system is underdetermined
-    """
     def __init__(self, type):
         self.type = type
 
