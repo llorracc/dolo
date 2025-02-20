@@ -1,4 +1,0 @@
-For all the jupyter notebook (.ipynb) files in examples/notebooks, use a command like “jupyter nbconvert —to-script” to make equivalent .py files, and put these generated files in a directory examples/notebooks_docs-added
-
-Do not proceed to the next phase until you have confirmed that the .py files are present in the notebooks_add-docs folder. 
-
