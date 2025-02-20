@@ -4,43 +4,30 @@
 # In[1]:
 
 
+import matplotlib.pyplot as plt
+from pathlib import Path
 from dolo import *
-from matplotlib import pyplot as plt
+
+# Simple path setup that works for both notebook and script
+examples_dir = Path(__file__).parent.parent if "__file__" in globals() else Path.cwd().parent
+model = yaml_import(str(examples_dir / "models" / "consumption_savings_iid.yaml"))
 
 
 # In[2]:
 
 
-model = yaml_import("../models/consumption_savings_iid.yaml")
-
-
-# In[23]:
-
-
+# Time iteration
 dr = time_iteration(model)
 
 
-# One can also try the faster version
-
-# ## Stochastic Simulations
-
-# In[24]:
+# In[3]:
 
 
-# Shocks are discretized as a markov chain by default:
-dp = model.exogenous.discretize()
-sim_shock = dp.simulate(10, 100, i0=1)
-for i in range(10):
-    plt.plot(sim_shock[:,i,0], color='red', alpha=0.5)
-
-
-# In[25]:
-
-
+# Create simulation before plotting it
 sim = simulate(model, dr, i0=1, N=100)
 
 
-# In[26]:
+# In[4]:
 
 
 plt.subplot(121)
@@ -59,13 +46,13 @@ plt.tight_layout()
 
 # ## Ergodic distribution
 
-# In[27]:
+# In[5]:
 
 
 sim_long = simulate(model, dr, i0=1, N=1000, T=200)
 
 
-# In[28]:
+# In[6]:
 
 
 import seaborn
@@ -75,19 +62,13 @@ plt.xlabel("$w$")
 
 # ## Plotting Decision Rule
 
-# In[29]:
+# In[7]:
 
 
 tab = tabulate(model, dr,'w')
 
 
-# In[30]:
-
-
-from matplotlib import pyplot as plt
-
-
-# In[31]:
+# In[8]:
 
 
 stable_wealth = model.eval_formula('1/r+(1-1/r)*w(0)', tab)

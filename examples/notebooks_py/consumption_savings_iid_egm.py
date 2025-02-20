@@ -5,31 +5,13 @@
 
 
 import matplotlib.pyplot as plt
-from dolo import *
-import os
 from pathlib import Path
+from dolo import *
 from dolo.algos.egm import egm
-def set_cwd_to_script_or_notebook():
-    try:
-        # Check if running in Jupyter notebook
-        if "__file__" not in globals():
-            # If `__file__` is not available, assume Jupyter notebook
-            notebook_dir = Path.cwd()  # Use the current notebook's directory
-            print(f"Detected Jupyter environment. Setting CWD to: {notebook_dir}")
-        else:
-            # If `__file__` exists, use the script's directory
-            notebook_dir = Path(__file__).parent.resolve()
-            print(f"Detected script environment. Setting CWD to: {notebook_dir}")
-        
-        # Set the CWD
-        os.chdir(notebook_dir)
-        print("Current working directory set to:", os.getcwd())
-    except Exception as e:
-        print(f"Failed to set the current working directory: {e}")
 
-# Call the function
-set_cwd_to_script_or_notebook()
-dolo.__file__
+# Simple path setup that works for both notebook and script
+examples_dir = Path(__file__).parent.parent if "__file__" in globals() else Path.cwd().parent
+model = yaml_import(str(examples_dir / "models" / "consumption_savings_iid.yaml"))
 
 
 # In[2]:
@@ -109,7 +91,7 @@ plt.xlabel("$w$")
 tab = tabulate(model, dr,'w')
 
 
-# In[11]:
+# In[10]:
 
 
 stable_wealth = model.eval_formula('1/r+(1-1/r)*w(0)', tab)
