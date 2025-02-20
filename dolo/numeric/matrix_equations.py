@@ -125,44 +125,44 @@ class BKError(Exception):  # Custom exception for Blanchard-Kahn errors
         return "Blanchard-Kahn error ({0})".format(self.type)  # Format error message
 
 
-def solve_tensor(A, B):  # Solve tensor equation
-    """
-    Solve a tensor equation of the form A X = B.
+# def solve_tensor(A, B):  # Solve tensor equation
+#     """
+#     Solve a tensor equation of the form A X = B.
     
-    Solves systems of linear equations where the coefficient matrix A and
-    right-hand side B are 3-dimensional tensors. Each slice represents a
-    separate linear system.
+#     Solves systems of linear equations where the coefficient matrix A and
+#     right-hand side B are 3-dimensional tensors. Each slice represents a
+#     separate linear system.
     
-    Parameters
-    ----------
-    A : array_like
-        3D tensor of coefficient matrices (n_systems, n_eqs, n_vars)
-    B : array_like
-        3D tensor of right-hand sides (n_systems, n_eqs, n_rhs)
+#     Parameters
+#     ----------
+#     A : array_like
+#         3D tensor of coefficient matrices (n_systems, n_eqs, n_vars)
+#     B : array_like
+#         3D tensor of right-hand sides (n_systems, n_eqs, n_rhs)
         
-    Returns
-    -------
-    array
-        Solution tensor X with shape (n_systems, n_vars, n_rhs)
+#     Returns
+#     -------
+#     array
+#         Solution tensor X with shape (n_systems, n_vars, n_rhs)
         
-    Notes
-    -----
-    Uses numpy.linalg.solve to solve each system independently.
-    Assumes A is invertible for each slice.
-    """
-    from numpy.linalg import solve  # For linear system solution
+#     Notes
+#     -----
+#     Uses numpy.linalg.solve to solve each system independently.
+#     Assumes A is invertible for each slice.
+#     """
+#     from numpy.linalg import solve  # For linear system solution
 
-    n_systems = A.shape[0]  # Get number of systems
-    n_eqs = A.shape[1]  # Get number of equations
-    n_vars = A.shape[2]  # Get number of variables
-    n_rhs = B.shape[2]  # Get number of right-hand sides
+#     n_systems = A.shape[0]  # Get number of systems
+#     n_eqs = A.shape[1]  # Get number of equations
+#     n_vars = A.shape[2]  # Get number of variables
+#     n_rhs = B.shape[2]  # Get number of right-hand sides
 
-    X = np.zeros((n_systems, n_vars, n_rhs))  # Initialize solution tensor
+#     X = np.zeros((n_systems, n_vars, n_rhs))  # Initialize solution tensor
 
-    for system in range(n_systems):  # Iterate over each system
-        for eq in range(n_eqs):  # Iterate over each equation
-            A_slice = A[system, eq, :, :]  # Get current slice of A
-            B_slice = B[system, eq, :]  # Get current slice of B
-            X[system, eq, :] = solve(A_slice, B_slice)  # Solve linear system
+#     for system in range(n_systems):  # Iterate over each system
+#         for eq in range(n_eqs):  # Iterate over each equation
+#             A_slice = A[system, eq, :, :]  # Get current slice of A
+#             B_slice = B[system, eq, :]  # Get current slice of B
+#             X[system, eq, :] = solve(A_slice, B_slice)  # Solve linear system
 
-    return X  # Return solution tensor
+#     return X  # Return solution tensor
