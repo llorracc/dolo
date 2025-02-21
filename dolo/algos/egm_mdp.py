@@ -4,6 +4,7 @@ import numpy as np                                 # numerical computations
 from interpolation.splines import eval_linear      # policy interpolation
 from dolo.compiler.model import Model             # model object representation
 from .results import EGMResult                    # EGM solution results
+from numba import njit # imports numba's njit decorator for just-in-time compilation
 
 
 def egm(
@@ -185,3 +186,107 @@ def egm(
         return sol, internals
     
     return sol
+
+@njit # compiles the function using numba for performance
+def egm_step(iA, a_grid, z_grid, probs, r, beta, interp_func, interp_func_deriv, val_func):
+    """
+    One step of the Endogenous Grid Method for discrete choice problems.
+
+    This function performs a single iteration of the EGM algorithm for problems with both continuous and discrete choices.
+    It updates the value function and policy function for a given discrete choice.
+
+    Parameters:
+        iA (int): Index of the discrete choice.
+        a_grid (ndarray): Grid for the endogenous state variable (e.g., assets).
+        z_grid (ndarray): Grid for the exogenous state variable (e.g., productivity).
+        probs (ndarray): Transition probabilities for the exogenous state.
+        r (float): Interest rate.
+        beta (float): Discount factor.
+        interp_func (callable): Function to interpolate the value function.  See, e.g., `dolo.numeric.interpolation.multilinear.multilinear_interpolation`.
+        interp_func_deriv (callable): Function to compute the derivative of the value function. See, e.g., `dolo.numeric.interpolation.multilinear.multilinear_interpolation_derivative`.
+        val_func (ndarray): Current value function.
+
+    Returns:
+        tuple: A tuple containing:
+            - c_star (ndarray): Optimal consumption policy.
+            - a_star (ndarray): Optimal asset policy.
+            - v_star (ndarray): Updated value function.
+    """
+
+    n_z = z_grid.shape[0] # get the number of exogenous state grid points
+    n_a = a_grid.shape[0] # get the number of endogenous state grid points
+
+    c_star = np.empty((n_z, n_a)) # initialize an array to store optimal consumption
+    a_star = np.empty((n_z, n_a)) # initialize an array to store optimal asset choices
+    v_star = np.empty((n_z, n_a)) # initialize an array to store the updated value function
+
+    for iz, z in enumerate(z_grid): # loop over exogenous state grid points
+
+        for ia, a in enumerate(a_grid): # loop over endogenous state grid points
+
+            ev_next = 0.0 # initialize expected value for the next period
+            dev_next = 0.0 # initialize derivative of expected value for the next period
+
+            for izp in range(n_z): # loop over next period's exogenous state grid points
+
+                zp = z_grid[izp] # get next period's exogenous state value
+
+                vp = interp_func(iA, zp, a, val_func) # interpolate the value function at (iA, zp, a)
+                dvp = interp_func_deriv(iA, zp, a, val_func) # compute derivative of value function at (iA, zp, a)
+
+                ev_next += vp * probs[iz, izp] # accumulate expected value
+                dev_next += dvp * probs[iz, izp] # accumulate derivative of expected value
+
+            c_star[iz, ia] = dev_next ** (-1.0) # compute optimal consumption using the inverse of the derivative
+            a_star[iz, ia] = (c_star[iz, ia] + a - z) / (1 + r) # compute optimal asset choice using the budget constraint
+            v_star[iz, ia] = (
+                c_star[iz, ia] ** (1) - 1.0 + beta * ev_next
+            )  # compute the updated value function
+
+    return c_star, a_star, v_star # return optimal consumption, asset choice, and updated value function
+
+@njit # compiles the function using numba for performance
+def egm_egm(it_inf_bounds, a_grid, z_grid, probs, r, beta, interp_func, interp_func_deriv, val_func):
+    """
+    Endogenous Grid Method algorithm for discrete choice problems.
+
+    This function implements the EGM algorithm to solve for the optimal policy and value functions
+    in a dynamic programming problem with discrete choices.
+
+    Parameters:
+        it_inf_bounds (tuple): Tuple of lower and upper bounds for the infinite iteration.
+        a_grid (ndarray): Grid for the endogenous state variable (e.g., assets).
+        z_grid (ndarray): Grid for the exogenous state variable (e.g., productivity).
+        probs (ndarray): Transition probabilities for the exogenous state.
+        r (float): Interest rate.
+        beta (float): Discount factor.
+        interp_func (callable): Function to interpolate the value function. See, e.g., `dolo.numeric.interpolation.multilinear.multilinear_interpolation`.
+        interp_func_deriv (callable): Function to compute the derivative of the value function.  See, e.g., `dolo.numeric.interpolation.multilinear.multilinear_interpolation_derivative`.
+        val_func (ndarray): Initial value function.
+
+    Returns:
+        tuple: A tuple containing:
+            - c_star (ndarray): Optimal consumption policy.
+            - a_star (ndarray): Optimal asset policy.
+            - v_star (ndarray): Updated value function.
+
+    """
+
+    n_z = z_grid.shape[0] # get the number of exogenous state grid points
+    n_a = a_grid.shape[0] # get the number of endogenous state grid points
+    nA = it_inf_bounds[1] # get the upper bound for the infinite iteration (number of discrete choices)
+
+    c_star = np.empty((nA, n_z, n_a)) # initialize an array to store optimal consumption for each discrete choice
+    a_star = np.empty((nA, n_z, n_a)) # initialize an array to store optimal asset choices for each discrete choice
+    v_star = np.empty((nA, n_z, n_a)) # initialize an array to store the updated value function for each discrete choice
+
+    for iA in range(nA): # loop over discrete choices
+
+        c_stari, a_stari, v_stari = egm_step( # call the egm_step function for the current discrete choice
+            iA, a_grid, z_grid, probs, r, beta, interp_func, interp_func_deriv, val_func
+        )
+        c_star[iA, :, :] = c_stari # store the optimal consumption for the current discrete choice
+        a_star[iA, :, :] = a_stari # store the optimal asset choice for the current discrete choice
+        v_star[iA, :, :] = v_stari # store the updated value function for the current discrete choice
+
+    return c_star, a_star, v_star # return optimal consumption, asset choice, and updated value function for all discrete choices
