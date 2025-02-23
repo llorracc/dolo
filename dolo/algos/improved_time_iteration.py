@@ -6,7 +6,6 @@ from .invert import *
 from dolo.compiler.model import Model
 from dolo.numeric.decision_rule import DecisionRule
 from dolo.misc.itprinter import IterationsPrinter
-from numba import jit
 import numpy
 import time
 import scipy.sparse.linalg
