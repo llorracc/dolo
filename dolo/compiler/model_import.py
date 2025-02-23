@@ -1,15 +1,15 @@
 import numpy
 
-from dolo.misc.display import read_file_or_url
+from dolo.misc.display import read_file_or_url       # Handle local/remote model files (snt3p5)
 import yaml
 
 
 def yaml_import(fname, check=True, check_only=False):
 
-    txt = read_file_or_url(fname)
+    txt = read_file_or_url(fname)                    # Load model spec from file/URL (snt3p5)
 
     try:
-        data = yaml.compose(txt)
+        data = yaml.compose(txt)                     # Parse YAML to AST for validation (snt3p5)
         # print(data)
         # return data
     except Exception as ex:
@@ -29,9 +29,9 @@ def yaml_import(fname, check=True, check_only=False):
     # if check_only:
     #     return output
 
-    data["filename"] = fname
+    data["filename"] = fname                         # Store source file info (snt3p5)
 
     from dolo.compiler.model import Model
 
-    return Model(data, check=check)
+    return Model(data, check=check)                  # Create model from YAML spec (snt3p5)
     # from dolo.compiler.model import SymbolicModel

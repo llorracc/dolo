@@ -1,0 +1,8 @@
+# First ignore everything
+*
+
+# Keep everything in models and notebooks_py directories
+!models/
+!models/**/*
+!notebooks_py/
+!notebooks_py/**/* 

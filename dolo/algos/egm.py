@@ -1,164 +1,145 @@
-import yaml                                        # model files in YAML format
-from dolo.numeric.decision_rule import DecisionRule  # policy functions
-import numpy as np                                 # numerical computations
-from interpolation.splines import eval_linear      # policy interpolation
-from dolo.compiler.model import Model             # model object representation
-from .results import EGMResult                    # EGM solution results
+import yaml
+from dolo.numeric.decision_rule import DecisionRule
+import numpy as np
+from interpolation.splines import eval_linear
+from dolo.compiler.model import Model
+from .results import EGMResult
 
 
 def egm(
-    model: Model,                                 # dolo model to solve
-    dr0: DecisionRule = None,                     # initial decision rule
-    verbose: bool = False,                        # iteration info flag
-    details: bool = True,                         # detailed results flag
-    a_grid=None,                                  # post-decision state grid
-    η_tol=1e-6,                                   # convergence tolerance
-    maxit=1000,                                   # max iterations
-    grid=None,                                    # pre-specified grid
-    dp=None,                                      # discrete process
+    model: Model,
+    dr0: DecisionRule = None,                       # Initial guess for decision rule
+    verbose: bool = False,                          # Whether to print iteration info
+    details: bool = True,                           # Whether to return detailed results
+    a_grid=None,                                    # Grid for post-decision states
+    η_tol=1e-6,                                     # Convergence tolerance
+    maxit=1000,                                     # Maximum iterations
+    grid=None,                                      # Optional state space grid
+    dp=None,                                        # Optional discretized process
 ):
     """
-    Endogenous Grid Method (EGM) solver for models with one state and one control.
-    
-    Implements the EGM algorithm as described in Carroll (2006) to solve for optimal
-    policy functions in dynamic models. Used extensively in examples/notebooks_py/
-    consumption_savings_iid_egm.py and consumption_savings_iid_egm_Tm1.py.
-
-    Parameters
-    ----------
-    model : Model
-        Dolo model with one state and one control variable
-    dr0 : DecisionRule, optional
-        Initial guess for decision rule
-    verbose : bool, default=False
-        If True, print convergence information
-    details : bool, default=True
-        If True, return detailed solution information
-    a_grid : array, optional
-        Grid for post-decision states, must be increasing
-    η_tol : float, default=1e-6
-        Tolerance for convergence criterion
-    maxit : int, default=1000
-        Maximum number of iterations
-    grid : dict, optional
-        Pre-specified grid for states
-    dp : DiscreteProcess, optional
-        Pre-specified discrete process for shocks
-
-    Returns
-    -------
-    EGMResult
-        Contains the solution including decision rule and convergence details
+    a_grid: (numpy-array) vector of points used to discretize poststates; must be increasing
     """
 
-    assert len(model.symbols["states"]) == 1      # single endogenous state
+    assert len(model.symbols["states"]) == 1        # Only one state variable allowed
     assert (
-        len(model.symbols["controls"]) == 1
-    )  # get the control bounds object from the model
-    from dolo.numeric.processes import IIDProcess  # IID shocks
-    iid_process = isinstance(model.exogenous, IIDProcess)  # check for IID process
+        len(model.symbols["controls"]) == 1         # Only one control variable allowed
+    )  # we probably don't need this restriction
 
-    def vprint(t):                                # conditional printing helper
-        if verbose:                               # verbose mode check
-            print(t)                              # message output
+    from dolo.numeric.processes import IIDProcess
 
-    p = model.calibration["parameters"]
-    
-    if grid is None and dp is None:              # no grid supplied
-        grid, dp = model.discretize()             # default discretization
+    iid_process = isinstance(model.exogenous, IIDProcess)  # Check if shocks are IID
 
-    s = grid["endo"].nodes                       # decision-perch endogenous grid nodes
+    def vprint(t):                                  # Helper function for verbose output
+        if verbose:
+            print(t)
 
-    funs = model.__original_gufunctions__        # compiled functions
-    h = funs["expectation"]                      # expectations
-    gt = funs["half_transition"]                 # state transition
-    τ = funs["direct_response_egm"]              # optimal choice given post-state
-    aτ = funs["reverse_state"]                   # dcsn state from choice and cntn
-    lb = funs["arbitrage_lb"]                    # lower bounds
-    ub = funs["arbitrage_ub"]                    # upper bounds
+    p = model.calibration["parameters"]             # Get model parameters
 
-    if dr0 is None:                              # no initial decision rule
-        x0 = model.calibration["controls"]        # calibrated controls
-        dr0 = lambda i, s: x0[None, :].repeat(s.shape[0], axis=0)  # constant policy
-    n_m = dp.n_nodes                             # exogenous nodes count
-    n_x = len(model.symbols["controls"])         # controls count
+    if grid is None and dp is None:
+        grid, dp = model.discretize()               # Get default discretization
 
-    if a_grid is None:                           # missing required grid
+    s = grid["endo"].nodes                          # Get endogenous grid nodes
+
+    funs = model.__original_gufunctions__           # Get model functions
+    h = funs["expectation"]                         # Expectation function
+    gt = funs["half_transition"]                    # State transition function
+    τ = funs["direct_response_egm"]                 # EGM policy function
+    aτ = funs["reverse_state"]                      # State update function
+    lb = funs["arbitrage_lb"]                       # Lower bound function
+    ub = funs["arbitrage_ub"]                       # Upper bound function
+
+    if dr0 is None:
+        x0 = model.calibration["controls"]          # Get initial controls
+        dr0 = lambda i, s: x0[None, :].repeat(s.shape[0], axis=0)  # Constant policy
+
+    n_m = dp.n_nodes                                # Number of exogenous states
+    n_x = len(model.symbols["controls"])            # Number of controls
+
+    if a_grid is None:
         raise Exception("You must supply a grid for the post-states.")
 
-    assert a_grid.ndim == 1                      # 1D grid check
-    a = a_grid[:, None]                          # grid reshape
-    N_a = a.shape[0]                             # grid points count
+    assert a_grid.ndim == 1                         # Grid must be 1-dimensional
+    a = a_grid[:, None]                             # Reshape grid for broadcasting
+    N_a = a.shape[0]                                # Number of grid points
 
-    N = s.shape[0]                               # state space size
+    N = s.shape[0]                                  # Number of state points
 
-    # precompute next period states for all possible combinations of current states and exogenous shocks
-    n_h = len(model.symbols["expectations"])     # expectation terms count
+    n_h = len(model.symbols["expectations"])        # Number of expectation terms
 
-    xa = np.zeros((n_m, N_a, n_x))              # policy array
-    sa = np.zeros((n_m, N_a, 1))                # endogenous state array
-    xa0 = np.zeros((n_m, N_a, n_x))             # next choices (persist for further iterations)
-    sa0 = np.zeros((n_m, N_a, 1))               # next endogenous states (corresponding to choices)
+    xa = np.zeros((n_m, N_a, n_x))                 # Policy on post-decision grid
+    sa = np.zeros((n_m, N_a, 1))                   # States on post-decision grid
+    xa0 = np.zeros((n_m, N_a, n_x))                # Previous policy
+    sa0 = np.zeros((n_m, N_a, 1))                  # Previous states
 
-    z = np.zeros((n_m, N_a, n_h))               # expectations storage
+    z = np.zeros((n_m, N_a, n_h))                  # Expectation terms
 
-    if verbose:                                  # verbose mode
-        headline = "|{0:^4} | {1:10} |".format("N", " Error")  # header format
+    if verbose:
+        headline = "|{0:^4} | {1:10} |".format("N", " Error")
         stars = "-" * len(headline)
         print(stars)
         print(headline)
         print(stars)
 
-    for it in range(0, maxit):                   # iteration loop
+    for it in range(0, maxit):                      # Main iteration loop
 
-    # evaluate expectations based on next values (uppercase = next decision-perch state; 'a' = current post-decision)
-        if it == 0:                              # first iteration
-            drfut = dr0
-        else:                                    # later iterations
-            def drfut(i, ss):                     # decision rule (ss = next decision-perch state)
-                if iid_process:                   # IID case
-                    i = 0
-                m = dp.node(i)                    # exogenous state
-                l_ = lb(m, ss, p)                 # lower bound
-                u_ = ub(m, ss, p)                 # upper bound
-                x = eval_linear((sa0[i, :, 0],), xa0[i, :, 0], ss)[:, None]  # policy interpolation
-                x = np.minimum(x, u_)             # upper bound
-                x = np.maximum(x, l_)             # lower bound
-                return x                          # bounded policy
+        if it == 0:
+            drfut = dr0                             # Use initial guess first time
 
-        z[:, :, :] = 0                           # expectations reset
-        for i_m in range(n_m):                   # current exog state (matters for transition if not IID)
-            m = dp.node(i_m)                      # current exogenous state
-            for i_M in range(dp.n_inodes(i_m)):  # next exogenous states loop
-                w = dp.iweight(i_m, i_M)          # transition weight
-                M = dp.inode(i_m, i_M)            # next exogenous state
-                S = gt(m, a, M, p)                # next endogenous state
-                vprint((it, i_m, i_M))            # iteration status if verbose
-                X = drfut(i_M, S)                 # future policy
-                z[i_m, :, :] += w * h(M, S, X, p)  # expectations update
-            xa[i_m, :, :] = τ(m, a, z[i_m, :, :], p)  # optimal policy
-            sa[i_m, :, :] = aτ(m, a, xa[i_m, :, :], p)  # endogenous state update
-        if it > 1:                               # past first iteration
-            η = abs(xa - xa0).max() + abs(sa - sa0).max()  # error measure
-        else:                                    # first iteration
-            η = 1
+        else:
+            def drfut(i, ss):                       # Future decision rule
+                if iid_process:
+                    i = 0                           # Only one exogenous state for IID
+                m = dp.node(i)                      # Get exogenous state
+                l_ = lb(m, ss, p)                   # Get lower bound
+                u_ = ub(m, ss, p)                   # Get upper bound
+                x = eval_linear((sa0[i, :, 0],), xa0[i, :, 0], ss)[:, None]  # Interpolate policy
+                x = np.minimum(x, u_)               # Apply upper bound
+                x = np.maximum(x, l_)               # Apply lower bound
+                return x
 
-        vprint("|{0:4} | {1:10.3e} |".format(it, η))  # iteration progress
+        z[:, :, :] = 0                             # Reset expectations
 
-        if η < η_tol:                            # convergence check
+        for i_m in range(n_m):                      # Loop over exogenous states
+            m = dp.node(i_m)                        # Get current exogenous state
+            for i_M in range(dp.n_inodes(i_m)):     # Loop over future states
+                w = dp.iweight(i_m, i_M)            # Get transition probability
+                M = dp.inode(i_m, i_M)              # Get future exogenous state
+                S = gt(m, a, M, p)                  # Get future endogenous state
+                X = drfut(i_M, S)                   # Get future controls
+                z[i_m, :, :] += w * h(M, S, X, p)   # Update expectations
+            xa[i_m, :, :] = τ(m, a, z[i_m, :, :], p)  # Compute optimal policy
+            sa[i_m, :, :] = aτ(m, a, xa[i_m, :, :], p)  # Update state
+
+        if it > 1:
+            η = abs(xa - xa0).max() + abs(sa - sa0).max()  # Compute error
+        else:
+            η = 1                                   # Skip error first iteration
+
+        vprint("|{0:4} | {1:10.3e} |".format(it, η))
+
+        if η < η_tol:                               # Check convergence
             break
 
-        sa0[...] = sa                            # next endogenous states update
-        xa0[...] = xa                            # next policies update
+        sa0[...] = sa                               # Store current states
+        xa0[...] = xa                               # Store current policy
 
-    # evaluate current rewards based on current states and optimal controls
-    endo_grid = grid["endo"]                     # endogenous grid
-    exo_grid = grid["exo"]                       # exogenous grid
-    mdr = DecisionRule(exo_grid, endo_grid, dprocess=dp, interp_method="cubic")
-    mdr.set_values(
+    # resample the result on the standard grid
+    endo_grid = grid["endo"]                        # Get endogenous grid
+    exo_grid = grid["exo"]                          # Get exogenous grid
+    mdr = DecisionRule(exo_grid, endo_grid, dprocess=dp, interp_method="cubic")  # Create decision rule
+
+    mdr.set_values(                                 # Set policy values
         np.concatenate([drfut(i, s)[None, :, :] for i in range(n_m)], axis=0)
-    ) # next choices as a function of next decision-perch state
+    )
 
-    sol = EGMResult(mdr, it, dp, (η < η_tol), η_tol, η)
+    sol = EGMResult(                                # Create result object
+        mdr,                                        # Decision rule
+        it,                                         # Number of iterations
+        dp,                                         # Discretized process
+        (η < η_tol),                               # Whether converged
+        η_tol,                                     # Tolerance level
+        η                                          # Final error
+    )
 
     return sol

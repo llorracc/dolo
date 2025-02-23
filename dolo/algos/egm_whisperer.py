@@ -64,9 +64,9 @@ def egm_mdp(
     """
     
     return egm(model, dr0, verbose, details, a_grid, η_tol, 
-              maxit, grid, dp, return_internals=True) 
+              maxit, grid, dp, return_internals=True)  # Call base EGM with internals flag
 
-@njit # compiles the function using numba for performance
+@njit # Compile function with Numba for performance
 def egm_step(iA, a_grid, z_grid, probs, r, beta, interp_func, interp_func_deriv, val_func):
     """
     One step of the Endogenous Grid Method for discrete choice problems.
@@ -92,35 +92,35 @@ def egm_step(iA, a_grid, z_grid, probs, r, beta, interp_func, interp_func_deriv,
             - v_star (ndarray): Updated value function.
     """
 
-    n_z = z_grid.shape[0] # get the number of exogenous state grid points
-    n_a = a_grid.shape[0] # get the number of endogenous state grid points
+    n_z = z_grid.shape[0]                        # Number of exogenous state points
+    n_a = a_grid.shape[0]                        # Number of endogenous state points
 
-    c_star = np.empty((n_z, n_a)) # initialize an array to store optimal consumption
-    a_star = np.empty((n_z, n_a)) # initialize an array to store optimal asset choices
-    v_star = np.empty((n_z, n_a)) # initialize an array to store the updated value function
+    c_star = np.empty((n_z, n_a))                # Initialize optimal consumption array
+    a_star = np.empty((n_z, n_a))                # Initialize optimal asset array
+    v_star = np.empty((n_z, n_a))                # Initialize value function array
 
-    for iz, z in enumerate(z_grid): # loop over exogenous state grid points
+    for iz, z in enumerate(z_grid):              # Loop over productivity states
 
-        for ia, a in enumerate(a_grid): # loop over endogenous state grid points
+        for ia, a in enumerate(a_grid):          # Loop over asset states
 
-            ev_next = 0.0 # initialize expected value for the next period
-            dev_next = 0.0 # initialize derivative of expected value for the next period
+            ev_next = 0.0                        # Initialize expected future value
+            dev_next = 0.0                       # Initialize derivative of expected value
 
-            for izp in range(n_z): # loop over next period's exogenous state grid points
+            for izp in range(n_z):               # Loop over next period states
 
-                zp = z_grid[izp] # get next period's exogenous state value
+                zp = z_grid[izp]                 # Get next period productivity
 
-                vp = interp_func(iA, zp, a, val_func) # interpolate the value function at (iA, zp, a)
-                dvp = interp_func_deriv(iA, zp, a, val_func) # compute derivative of value function at (iA, zp, a)
+                vp = interp_func(iA, zp, a, val_func)  # Interpolate future value
+                dvp = interp_func_deriv(iA, zp, a, val_func)  # Get value derivative
 
-                ev_next += vp * probs[iz, izp] # accumulate expected value
-                dev_next += dvp * probs[iz, izp] # accumulate derivative of expected value
+                ev_next += vp * probs[iz, izp]   # Add weighted future value
+                dev_next += dvp * probs[iz, izp] # Add weighted derivative
 
             c_star[iz, ia] = dev_next ** (-1.0) # compute optimal consumption using the inverse of the derivative
             a_star[iz, ia] = (c_star[iz, ia] + a - z) / (1 + r) # compute optimal asset choice using the budget constraint
             v_star[iz, ia] = (
-                c_star[iz, ia] ** (1) - 1.0 + beta * ev_next
-            )  # compute the updated value function
+                c_star[iz, ia] ** (1) - 1.0 + beta * ev_next  # Value function update
+            )
 
     return c_star, a_star, v_star # return optimal consumption, asset choice, and updated value function
 

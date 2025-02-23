@@ -15,29 +15,33 @@ import numpy as np
 
 
 def filter_controls(a, b, ndims, controls):
+    # Filters control variables using cubic splines for interpolation
 
     from interpolation.splines.filter_cubic import filter_data, filter_mcoeffs
 
-    dinv = (b - a) / (ndims - 1)
+    dinv = (b - a) / (ndims - 1)                    # Grid spacing for each dimension
     ndims = array(ndims)
     n_m, N, n_x = controls.shape
-    coefs = zeros((n_m,) + tuple(ndims + 2) + (n_x,))
+    coefs = zeros((n_m,) + tuple(ndims + 2) + (n_x,))  # Initialize coefficient array
     for i_m in range(n_m):
-        tt = filter_mcoeffs(a, b, ndims, controls[i_m, ...])
+        tt = filter_mcoeffs(a, b, ndims, controls[i_m, ...])  # Apply cubic filter
         # for i_x in range(n_x):
         coefs[i_m, ...] = tt
     return coefs
 
 
 class Linear:
+    # Marker class for linear interpolation method
     pass
 
 
 class Cubic:
+    # Marker class for cubic interpolation method
     pass
 
 
 class Chebychev:
+    # Marker class for Chebychev interpolation method
     pass
 
 
@@ -52,7 +56,10 @@ interp_methods = {
 
 
 class CallableDecisionRule:
+    # Base class for callable decision rules that can evaluate policy functions
+
     def __call__(self, *args):
+        # Evaluate decision rule with flexible argument handling
         args = [np.array(e) for e in args]
         if len(args) == 1:
             if args[0].ndim == 1:
@@ -79,9 +86,10 @@ class CallableDecisionRule:
 
 
 class DecisionRule(CallableDecisionRule):
+    # Decision rule class combining exogenous and endogenous grids with interpolation
 
-    exo_grid: Grid
-    endo_grid: Grid
+    exo_grid: Grid                                   # Grid for exogenous variables
+    endo_grid: Grid                                  # Grid for endogenous variables
 
     def __init__(
         self,
@@ -91,6 +99,7 @@ class DecisionRule(CallableDecisionRule):
         dprocess=None,
         values=None,
     ):
+        # Initialize decision rule with grids and interpolation method
 
         if interp_method not in interp_methods.keys():
             raise Exception(
@@ -114,34 +123,39 @@ class DecisionRule(CallableDecisionRule):
             self.set_values(values)
 
     def set_values(self, x):
+        # Set coefficient values for interpolation
         self.coefficients = self.__get_coefficients__(
             self, self.exo_grid, self.endo_grid, self.__interp_method__, x
         )
 
     def eval_ms(self, m, s):
+        # Evaluate at exogenous state m and endogenous state s
         return self.__eval_ms__(
             self, self.exo_grid, self.endo_grid, self.__interp_method__, m, s
         )
 
     def eval_is(self, i, s):
+        # Evaluate at exogenous index i and endogenous state s
         return self.__eval_is__(
             self, self.exo_grid, self.endo_grid, self.__interp_method__, i, s
         )
 
     def eval_s(self, s):
+        # Evaluate at endogenous state s
         return self.__eval_s__(
             self, self.exo_grid, self.endo_grid, self.__interp_method__, s
         )
 
     def eval_ijs(self, i, j, s):
+        # Evaluate at exogenous indices i,j and endogenous state s
 
         if isinstance(self.exo_grid, UnstructuredGrid):
-            out = self.eval_is(j, s)
+            out = self.eval_is(j, s)                 # Use direct index for unstructured grid
         elif isinstance(self.exo_grid, EmptyGrid):
-            out = self.eval_s(s)
+            out = self.eval_s(s)                     # Ignore exogenous state for empty grid
         elif isinstance(self.exo_grid, CartesianGrid):
-            m = self.dprocess.inode(i, j)[None, :].repeat(s.shape[0], axis=0)
-            out = self.eval_ms(m, s)
+            m = self.dprocess.inode(i, j)[None, :].repeat(s.shape[0], axis=0)  # Get exogenous state
+            out = self.eval_ms(m, s)                 # Evaluate with exogenous state
         else:
             raise Exception("Not Implemented.")
 
@@ -166,6 +180,7 @@ def get_coefficients(
     interp_type: Linear,
     x: object,
 ):
+    # Get coefficients for linear interpolation on Cartesian product grid
     grid = exo_grid + endo_grid
     xx = x.reshape(tuple(grid.n) + (-1,))
     return xx.copy()
@@ -180,6 +195,7 @@ def eval_ms(
     m: object,
     s: object,
 ):
+    # Evaluate linear interpolation at exogenous state m and endogenous state s
 
     assert m.ndim == s.ndim == 2
 
@@ -204,6 +220,7 @@ def eval_is(
     i: object,
     s: object,
 ):
+    # Evaluate linear interpolation at exogenous index i and endogenous state s
     m = exo_grid.node(i)[None, :]
     return eval_ms(itp, exo_grid, endo_grid, interp_type, m, s)
 
@@ -219,6 +236,7 @@ def get_coefficients(
     interp_type: Cubic,
     x: object,
 ):
+    # Get coefficients for cubic interpolation on Cartesian product grid
 
     from interpolation.splines.prefilter_cubic import prefilter_cubic
 
@@ -237,6 +255,7 @@ def eval_ms(
     m: object,
     s: object,
 ):
+    # Evaluate cubic interpolation at exogenous state m and endogenous state s
 
     from interpolation.splines import eval_cubic
 
@@ -261,6 +280,7 @@ def eval_is(
     i: object,
     s: object,
 ):
+    # Evaluate cubic interpolation at exogenous index i and endogenous state s
     m = exo_grid.node(i)[None, :]
     return eval_ms(itp, exo_grid, endo_grid, interp_type, m, s)
 
@@ -276,7 +296,8 @@ def get_coefficients(
     interp_type: Linear,
     x: object,
 ):
-    return [x[i].reshape(tuple(endo_grid.n) + (-1,)).copy() for i in range(x.shape[0])]
+    # Get coefficients for linear interpolation with unstructured exogenous grid
+    return [x[i].copy() for i in range(x.shape[0])]
 
 
 @multimethod
@@ -288,6 +309,7 @@ def eval_is(
     i: object,
     s: object,
 ):
+    # Evaluate linear interpolation at exogenous index i and endogenous state s
 
     from interpolation.splines import eval_linear
 
@@ -309,6 +331,7 @@ def get_coefficients(
     interp_type: Cubic,
     x: object,
 ):
+    # Get coefficients for cubic interpolation with unstructured exogenous grid
     from interpolation.splines.prefilter_cubic import prefilter_cubic
 
     gg = endo_grid.__numba_repr__()
@@ -327,6 +350,7 @@ def eval_is(
     i: object,
     s: object,
 ):
+    # Evaluate cubic interpolation at exogenous index i and endogenous state s
 
     from interpolation.splines import eval_cubic
 
@@ -347,6 +371,7 @@ def get_coefficients(
     interp_type: Linear,
     x: object,
 ):
+    # Get coefficients for linear interpolation with unstructured exogenous grid
     return [x[i].copy() for i in range(x.shape[0])]
 
 
@@ -359,6 +384,7 @@ def eval_is(
     i: object,
     s: object,
 ):
+    # Evaluate linear interpolation at exogenous index i and endogenous state s
 
     from interpolation.splines import eval_linear
 
@@ -381,6 +407,7 @@ def get_coefficients(
     interp_type: Linear,
     x: object,
 ):
+    # Get coefficients for linear interpolation with empty exogenous grid
     grid = exo_grid + endo_grid
     xx = x.reshape(tuple(grid.n) + (-1,))
     return xx.copy()
@@ -394,6 +421,7 @@ def eval_s(
     interp_type: Linear,
     s: object,
 ):
+    # Evaluate linear interpolation at endogenous state s with empty exogenous grid
     from interpolation.splines import eval_linear
 
     assert s.ndim == 2
@@ -413,6 +441,7 @@ def get_coefficients(
     interp_type: Cubic,
     x: object,
 ):
+    # Get coefficients for cubic interpolation with empty exogenous grid
     from interpolation.splines.prefilter_cubic import prefilter_cubic
 
     grid = endo_grid  # one single CartesianGrid
@@ -428,6 +457,7 @@ def eval_s(
     interp_type: Cubic,
     s: object,
 ):
+    # Evaluate cubic interpolation at endogenous state s with empty exogenous grid
     from interpolation.splines import eval_cubic
 
     assert s.ndim == 2
@@ -448,6 +478,7 @@ def eval_is(
     i: object,
     s: object,
 ):
+    # Default eval_is method for empty exogenous grid - forwards to eval_s
     return eval_s(itp, exo_grid, endo_grid, interp_type, s)
 
 
@@ -460,6 +491,7 @@ def eval_ms(
     m: object,
     s: object,
 ):
+    # Default eval_ms method for empty exogenous grid - forwards to eval_s
     return eval_s(itp, exo_grid, endo_grid, interp_type, s)
 
 
@@ -467,10 +499,13 @@ def eval_ms(
 
 
 class ConstantDecisionRule(CallableDecisionRule):
+    # Decision rule that returns constant values regardless of state
     def __init__(self, x0):
+        # Initialize with constant value x0
         self.x0 = x0
 
     def eval_s(self, s):
+        # Return constant value for any endogenous state
         if s.ndim == 1:
             return self.x0
         else:
@@ -478,9 +513,11 @@ class ConstantDecisionRule(CallableDecisionRule):
             return self.x0[None, :].repeat(N, axis=0)
 
     def eval_is(self, i, s):
+        # Return constant value for any exogenous index and endogenous state
         return self.eval_s(s)
 
     def eval_ms(self, m, s):
+        # Return constant value for any exogenous and endogenous states
         return self.eval_s(s)
 
 
@@ -493,7 +530,9 @@ from dolang.function_compiler import make_method_from_factory
 
 
 class CustomDR(CallableDecisionRule):
+    # Custom decision rule with user-defined evaluation functions
     def __init__(self, values, model=None):
+        # Initialize with dictionary of values and optional model
 
         from dolang.symbolic import sanitize, stringify
 
@@ -555,5 +594,5 @@ class CustomDR(CallableDecisionRule):
         self.gufun = gufun
 
     def eval_ms(self, m, s):
-
+        # Evaluate decision rule at exogenous state m and endogenous state s
         return self.gufun(m, s, self.p)

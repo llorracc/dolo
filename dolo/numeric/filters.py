@@ -39,43 +39,43 @@ def hp_filter(data, lam=1600):
 
     if Y.ndim == 2:
         resp = [hp_filter(e) for e in data]
-        T = np.row_stack([e[0] for e in resp])
-        Cycle = np.row_stack([e[1] for e in resp])
+        T = np.row_stack([e[0] for e in resp])     # Stack trend components (snt3p5)
+        Cycle = np.row_stack([e[1] for e in resp]) # Stack cycle components (snt3p5)
         return [T, Cycle]
 
     elif Y.ndim > 2:
         raise Exception("HP filter is not defined for dimension >= 3.")
 
     lil_t = len(Y)
-    big_Lambda = sp.sparse.eye(lil_t, lil_t)
-    big_Lambda = sp.sparse.lil_matrix(big_Lambda)
+    big_Lambda = sp.sparse.eye(lil_t, lil_t)       # Initialize sparse identity matrix (snt3p5)
+    big_Lambda = sp.sparse.lil_matrix(big_Lambda)   # Convert to LIL format for efficient row ops (snt3p5)
 
-    # Use FOC's to build rows by group. The first and last rows are similar.
+    # Build coefficient groups for different equation positions (snt3p5)
     # As are the second-second to last. Then all the ones in the middle...
-    first_last = np.array([1 + lam, -2 * lam, lam])
-    second = np.array([-2 * lam, (1 + 5 * lam), -4 * lam, lam])
-    middle_stuff = np.array([lam, -4.0 * lam, 1 + 6 * lam, -4 * lam, lam])
+    first_last = np.array([1 + lam, -2 * lam, lam])  # Coeffs for first/last rows (snt3p5)
+    second = np.array([-2 * lam, (1 + 5 * lam), -4 * lam, lam])  # Coeffs for second/second-last rows (snt3p5)
+    middle_stuff = np.array([lam, -4.0 * lam, 1 + 6 * lam, -4 * lam, lam])  # Coeffs for middle rows (snt3p5)
 
     # --------------------------- Putting it together --------------------------#
 
     # First two rows
-    big_Lambda[0, 0:3] = first_last
-    big_Lambda[1, 0:4] = second
+    big_Lambda[0, 0:3] = first_last                 # Set coefficients for first row (snt3p5)
+    big_Lambda[1, 0:4] = second                     # Set coefficients for second row (snt3p5)
 
     # Last two rows. Second to last first : we have to reverse arrays
-    big_Lambda[lil_t - 2, -4:] = second[::-1]
-    big_Lambda[lil_t - 1, -3:] = first_last[::-1]
+    big_Lambda[lil_t - 2, -4:] = second[::-1]      # Set coefficients for second-to-last row (snt3p5)
+    big_Lambda[lil_t - 1, -3:] = first_last[::-1]  # Set coefficients for last row (snt3p5)
 
     # Middle rows
     for i in range(2, lil_t - 2):
-        big_Lambda[i, i - 2 : i + 3] = middle_stuff
+        big_Lambda[i, i - 2 : i + 3] = middle_stuff # Set coefficients for each middle row (snt3p5)
 
-    # spla.spsolve requires csr or csc matrix. I choose csr for fun.
-    big_Lambda = sp.sparse.csr_matrix(big_Lambda)
+    # Convert to CSR format for efficient solving
+    big_Lambda = sp.sparse.csr_matrix(big_Lambda)   # Convert to CSR format for sparse solver (snt3p5)
 
-    T = spla.spsolve(big_Lambda, Y)
+    T = spla.spsolve(big_Lambda, Y)                 # Solve for trend component (snt3p5)
 
-    Cycle = Y - T
+    Cycle = Y - T                                   # Calculate cyclical component (snt3p5)
 
     return T, Cycle
 
@@ -105,15 +105,15 @@ def bandpass_filter(data, k, w1, w2):
             The filtered data.
     """
     data = np.asarray(data)
-    low_w = np.pi * 2 / w2
-    high_w = np.pi * 2 / w1
-    bweights = np.zeros(2 * k + 1)
-    bweights[k] = (high_w - low_w) / np.pi
+    low_w = np.pi * 2 / w2                         # Convert period to frequency (snt3p5)
+    high_w = np.pi * 2 / w1                        # Convert period to frequency (snt3p5)
+    bweights = np.zeros(2 * k + 1)                 # Initialize filter weights (snt3p5)
+    bweights[k] = (high_w - low_w) / np.pi         # Set center weight (snt3p5)
     j = np.arange(1, int(k) + 1)
-    weights = 1 / (np.pi * j) * (sin(high_w * j) - sin(low_w * j))
-    bweights[k + j] = weights
-    bweights[:k] = weights[::-1]
+    weights = 1 / (np.pi * j) * (sin(high_w * j) - sin(low_w * j))  # Calculate symmetric weights (snt3p5)
+    bweights[k + j] = weights                      # Set right side weights (snt3p5)
+    bweights[:k] = weights[::-1]                   # Set left side weights (snt3p5)
 
-    bweights -= bweights.mean()
+    bweights -= bweights.mean()                    # Ensure zero mean (snt3p5)
 
-    return fftconvolve(bweights, data, mode="valid")
+    return fftconvolve(bweights, data, mode="valid")  # Apply filter via convolution (snt3p5)

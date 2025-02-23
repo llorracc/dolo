@@ -1,0 +1,31 @@
+# Build and configuration files
+make.bat
+Makefile
+.cursorrules
+.gitpod.yml
+.repo_ignore
+.repomix*
+cursor-tools.config.json
+License
+!mkdocs.yml
+poetry.lock
+pyproject.toml
+
+# Shell scripts
+*.sh
+
+# Python files and directories
+*.ipynb
+**/__pycache__/
+linter.py
+
+# Specific directories to exclude
+**/discretization/
+**/extern/
+**/optimize/
+**/experiments/
+**/misc/
+**/AI-prompts_MDP/
+
+# Other files
+TODO 

@@ -62,22 +62,19 @@ class Distribution(IIDProcess):
 
     Attributes:
         d(int): number of dimensions.
-        names(list[str], optional): variable names
-    """
+    # Base class for multivariate distributions with dimension d and optional variable names (snt3p5)
 
     d: int  # number of dimensions
     names: Union[None, Tuple[str, ...]]  # names of variables (optional)
 
     def draw(self, N: int) -> Matrix:
-        "Compute `N` random draws. Returns an `N` times `d` matrix."
-
+        # Generate N random draws from the distribution, returns N x d matrix (snt3p5)
         raise Exception(
             f"Not Implemented (yet). Should be implemented by subclass {self.__class__}"
         )
 
     def integrate(self, f) -> float:
-        "Computes the expectation $E_u f(u)$ for given function `f`"
-
+        # Compute expectation E[f(u)] for given function f (snt3p5)
         raise Exception(
             f"Not Implemented (yet). Should be implemented by subclass {self.__class__}"
         )
@@ -90,7 +87,7 @@ class Distribution(IIDProcess):
 
 class ContinuousDistribution(Distribution):
     def discretize(self, **kwargs):  # ->DiscreteDistribution:
-
+        # Convert continuous distribution to discrete approximation (snt3p5)
         raise Exception(
             f"Not Implemented (yet). Should be implemented by subclass {self.__class__}"
         )
@@ -102,49 +99,39 @@ class ContinuousDistribution(Distribution):
 
 
 class DiscreteDistribution(Distribution, DiscretizedIIDProcess):
-    """
-    A multivariate discrete distribution.
-
-    Attributes:
-        d(int): number of dimensions.
-        names(list[str], optional): variable names
-        n(int):  number of discretization points
-        origin(distribution, optional): distribution that was discretized
-    """
+    # Base class for discrete distributions with n points and optional origin distribution (snt3p5)
 
     n: int  # number of discretization points
     origin: Union[None, ContinuousDistribution]
 
     def point(self, i) -> Vector:
-        "Returns i-th discretization point (a Vector)"
+        # Get coordinates of i-th discretization point (snt3p5)
         raise Exception(
             f"Not Implemented (yet). Should be implemented by subclass {self.__class__}"
         )
 
     def weight(self, i) -> float:
-        "Returns i-th discretization point (a float)"
+        # Get probability weight of i-th discretization point (snt3p5)
         raise Exception(
             f"Not Implemented (yet). Should be implemented by subclass {self.__class__}"
         )
 
     def items(self) -> Iterator[Tuple[float, Vector]]:
-        """Returns a generator yielding all points and weights.
-
-        Example: sum( [ w*f(x) for (w,x) in discrete_dist.items() ] )
-        """
+        # Generate (weight, point) pairs for all discretization points (snt3p5)
         return ((self.weight(i), self.point(i)) for i in range(self.n))
 
     def integrate(self, fun: Callable[[Vector], T]) -> T:
-        # alread documented by the ancestor
+        # Compute discrete expectation sum(w_i * f(x_i)) (snt3p5)
         return sum(w * fun(x) for (w, x) in self.items())
 
 
 class EquiprobableDistribution(DiscreteDistribution):
+    # Discrete distribution with equal weights 1/n at each point (snt3p5)
 
     points: Vector
 
     def __init__(self, points: Vector = None, origin: Union[Distribution, None] = None):
-
+        # Initialize with array of points and optional origin distribution (snt3p5)
         n, d = points.shape
         self.d = d
         self.n = n
@@ -153,26 +140,28 @@ class EquiprobableDistribution(DiscreteDistribution):
 
     @property
     def weights(self) -> Vector:
-        # so that it can behave like a FiniteDistribution (notably for graphs)
+        # Return array of equal weights 1/n (snt3p5)
         w = np.ones(self.n)
         w /= self.n
         return w
 
     def point(self, i) -> float:
-
+        # Get i-th point coordinates (snt3p5)
         return self.points[i, :]
 
     def weight(self, i) -> float:
-
+        # Return probability 1/n for any point (snt3p5)
         return 1 / self.n
 
     def draw(self, N: int) -> Matrix:
+        # Generate N random draws by sampling points uniformly (snt3p5)
         import numpy.random
 
         inds = numpy.random.randint(low=0, high=self.n, size=N)
         return self.points[inds, :]
 
     def discretize(self, to="iid"):
+        # Convert to iid or Markov chain representation (snt3p5)
         if to == "iid":
             return self
         elif to == "mc":
@@ -190,6 +179,7 @@ class EquiprobableDistribution(DiscreteDistribution):
 # Special kind of Discrete distributions characterized
 # by a list of points and a list of weights.
 class FiniteDistribution(DiscreteDistribution):
+    # Discrete distribution with arbitrary points and weights (snt3p5)
 
     points: Vector
     weights: Vector
@@ -200,7 +190,7 @@ class FiniteDistribution(DiscreteDistribution):
         weights: Vector = None,
         origin: Union[Distribution, None] = None,
     ):
-
+        # Initialize with arrays of points and weights, and optional origin distribution (snt3p5)
         n, d = points.shape
         self.d = d
         self.n = n
@@ -210,34 +200,29 @@ class FiniteDistribution(DiscreteDistribution):
         self.origin = origin
 
     def draw(self, N: int) -> Matrix:
-
+        # Generate N random draws using weights as probabilities (snt3p5)
         import numpy.random
 
         choices = numpy.random.choice(range(self.n), size=N, p=self.weights)
         return self.points[choices, :]
 
     def point(self, i) -> float:
-
+        # Get i-th point coordinates (snt3p5)
         return self.points[i, :]
 
     def weight(self, i) -> float:
-
+        # Get i-th point probability weight (snt3p5)
         return self.weights[i]
 
     def discretize(self, to="iid"):
+        # Convert to iid or Markov chain representation (snt3p5)
         if to == "iid":
             return self
         elif to == "mc":
             from .processes import MarkovChain
-
             nodes = self.points
             N = len(nodes)
-            transitions = np.array(
-                [
-                    self.weights,
-                ]
-                * N
-            )
+            transitions = np.array([self.weights,] * N)  # Each state transitions with same probs (snt3p5)
             return MarkovChain(transitions, nodes)
         else:
             raise Exception("Not implemented.")
@@ -275,6 +260,7 @@ def product_iid(iids: List[FiniteDistribution]) -> FiniteDistribution:
 @language_element
 ##@dataclass
 class Bernouilli(DiscreteDistribution):
+    # Bernoulli distribution with probability p of success (1) and 1-p of failure (0) (snt3p5)
 
     π: float = 0.5
 
@@ -285,6 +271,7 @@ class Bernouilli(DiscreteDistribution):
         self.π = float(π)
 
     def discretize(self, to="iid"):
+        # Convert to iid or Markov chain representation (snt3p5)
 
         if to == "iid":
             x = np.array([[0], [1]])

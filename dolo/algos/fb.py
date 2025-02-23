@@ -15,21 +15,24 @@ ttol = 1e-10
 
 @jit
 def PhiFB(a, b):
+    # Basic Fischer-Burmeister function: a + b - sqrt(a^2 + b^2)
     return a + b - sqrt(a**2 + b**2)
 
 
 @jit
 def smooth_FB(f, x, a, b):
+    # Smooth Fischer-Burmeister function for complementarity problems
     return PhiFB(-PhiFB(f, x - a), b - x)
 
 
 @jit
 def PhiFB_(a, b):
+    # Fischer-Burmeister function with derivatives
     sq = sqrt(a**2 + b**2)
     x = a + b - sq
     if sq != 0.0:
-        dx_da = 1.0 - a / sq
-        dx_db = 1.0 - b / sq
+        dx_da = 1.0 - a / sq  # Derivative with respect to a
+        dx_db = 1.0 - b / sq  # Derivative with respect to b
     else:
         dx_da = 0.0
         dx_db = 0.0
@@ -38,7 +41,7 @@ def PhiFB_(a, b):
 
 @jit
 def smooth_FB_(f, x, a, b, df):
-    # P1 = Phi(f, x-a)
+    # Smooth Fischer-Burmeister function with derivatives
     # P2 = Phi(-P1, b-x)
     # f>=0 x-a>=04
     v, dv_df, dv_dx = PhiFB_(f, x - a)
@@ -54,6 +57,7 @@ import numpy as np
 
 @jit
 def smooth(f, x, a, b, df):
+    # Apply smooth Fischer-Burmeister function to arrays with derivatives
     n_ms, N, n_x = f.shape
     V = np.zeros_like(f)
     dV = df.copy()
@@ -73,6 +77,7 @@ def smooth(f, x, a, b, df):
 
 @jit
 def smooth_(f, x, a, b):
+    # Apply smooth Fischer-Burmeister function to arrays without derivatives
     n_ms, N, n_x = f.shape
     V = np.zeros_like(f)
     for i in range(n_ms):

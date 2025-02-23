@@ -12,8 +12,6 @@
 **/*.ipynb_checkpoints*
 **/doc/* # rst files that create the md documentation
 **/*models_*
-!test_*.py
-!tests/**/*.py
 **/misc/
 **/__pycache__/*
 **/__init__.py
@@ -35,3 +33,68 @@
 **/.cursor/**
 **/*notebooks/**
 **/*numeric/**
+# Global ignore defaults
+**/node_modules/
+**/.npm/
+**/__pycache__/
+**/.pytest_cache/
+**/.mypy_cache/
+**/*.ipynb
+**/.git*
+**/.repomix*
+**/repomix*
+**/linter.py
+**/models_*
+**/notebooks/*
+**/.cursorrules
+**/cursor*
+**/dynare*
+**/experiments*
+**/pyproject.toml
+**/*.sh
+
+
+# Build caches
+**/.gradle/
+**/.nuget/
+**/.cargo/
+**/.stack-work/
+**/.ccache/
+
+# IDE and Editor caches
+**/.idea/
+**/.vscode/
+**/*.swp
+**/*~
+
+# Temp files
+**/*.tmp
+**/*.temp
+**/*.bak
+
+**/*.meta
+**/package-lock.json
+
+# contents of .gitignore
+*.pyc
+*.mypy_cache*
+*__pycache__
+*.ipynb_checkpoints*
+doc/*
+*pickle
+*whl
+*tar.gz
+PKG-INFO
+*.txt
+site/*
+poetry.lock
+client_id
+pkgs/cache
+pkgs/urls
+setup.py
+.venv/*
+
+# Added by CDC, 20250127
+.specstory/*
+.DS_Store
+.repo_ignore
