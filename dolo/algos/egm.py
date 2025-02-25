@@ -125,9 +125,13 @@ def egm(
         xa0[...] = xa                               # Store current policy
 
     # resample the result on the standard grid
-    endo_grid = grid["endo"]                        # Get endogenous grid
-    exo_grid = grid["exo"]                          # Get exogenous grid
-    mdr = DecisionRule(exo_grid, endo_grid, dprocess=dp, interp_method="cubic")  # Create decision rule
+    # confusingly, what dolo calls "endo_grid" is what the EGM paper calls an exogenous grid
+    # in dolo, it is endogenous wrt the draws of the exogenous variable(s) (say, the income shock)
+    endo_grid = grid["endo"]                        # Get decision state grid
+    exo_grid = grid["exo"]                          # Get shock grid
+
+    # Create decision rule by interpolating among the points in the 
+    mdr = DecisionRule(exo_grid, endo_grid, dprocess=dp, interp_method="cubic")  
 
     mdr.set_values(                                 # Set policy values
         np.concatenate([drfut(i, s)[None, :, :] for i in range(n_m)], axis=0)
