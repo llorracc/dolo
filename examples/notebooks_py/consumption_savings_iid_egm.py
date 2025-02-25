@@ -14,12 +14,6 @@ examples_dir = Path(__file__).parent.parent if "__file__" in globals() else Path
 model = yaml_import(str(examples_dir / "models" / "consumption_savings_iid.yaml"))
 
 
-# In[2]:
-
-
-model = yaml_import("../models/consumption_savings_iid_egm.yaml")
-
-
 # In[3]:
 
 
