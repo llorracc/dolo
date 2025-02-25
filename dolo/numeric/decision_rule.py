@@ -88,8 +88,8 @@ class CallableDecisionRule:
 class DecisionRule(CallableDecisionRule):
     # Decision rule class combining exogenous and endogenous grids with interpolation
 
-    exo_grid: Grid                                   # Grid for exogenous variables
-    endo_grid: Grid                                  # Grid for endogenous variables
+    exo_grid: Grid                                   # Grid for exogenous variables (e.g., income shock)
+    endo_grid: Grid                                  # Grid for endogenous variables (e.g., wealth)
 
     def __init__(
         self,
