@@ -106,6 +106,7 @@ def egm(
                 w = dp.iweight(i_m, i_M)            # Get transition probability
                 M = dp.inode(i_m, i_M)              # Get future exogenous state
                 S = gt(m, a, M, p)                  # Get future endogenous state
+                print(it, i_m, i_M)
                 X = drfut(i_M, S)                   # Get future controls
                 z[i_m, :, :] += w * h(M, S, X, p)   # Update expectations
             xa[i_m, :, :] = τ(m, a, z[i_m, :, :], p)  # Compute optimal policy
