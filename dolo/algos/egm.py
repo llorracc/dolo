@@ -1,25 +1,62 @@
+# Explanation of changes from egm_EconForge.py:
+# 
+# The main motivation for these changes is to ensure consistent behavior between
+# time_iteration.py and egm.py algorithms when using a fixed number of iterations.
+# In particular, we want solutions for any given number of maxit to be the same 
+# distance from the terminal decision rule in both algorithms.
+#
+# Key changes:
+# 1. Define drfut function once outside the loop instead of redefining it each iteration
+# 2. Introduce drcurr to track the current decision rule, initialized to dr0
+# 3. For the first iteration, use the initial guess (dr0)
+# 4. Always update drcurr to drfut after each iteration (includes first iteration)
+#      # Despite its name, 'drfut' actually returns the "current" decision rule after
+#      # we update sa0 and xa0 to the current iteration's values. This ensures
+#      # mdr.set_values sets the final result to the most recently computed rule.
+# 5. Rearrange the state updates to be before the convergence check
+# 6. Added special handling for maxit=0 to return the initial guess unchanged
+# 7. Added trace parameter to record decision rules at each iteration
+# 8. Consolidated grid initialization to reduce code duplication
+#
+# These changes allow us to:
+# - Get consistent results between time_iteration.py and egm.py for the same maxit
+# - Properly handle edge cases (maxit=0, maxit=1)
+# - Track the evolution of decision rules across iterations
+
+# Commenting scheme used in this file:
+# - Lines starting with "##" are from egm_EconForge.py but have been commented out
+# - Lines with "# newline" comments are completely new additions to this file
+# - Lines with "# modified" comments are modified versions of lines from egm_EconForge.py
+# - Lines with "# moved" comments exist in egm_EconForge.py but have been relocated
+
 import yaml
 from dolo.numeric.decision_rule import DecisionRule
 import numpy as np
 from interpolation.splines import eval_linear
 from dolo.compiler.model import Model
 from .results import EGMResult
+import copy                                      # Add this import                     # newline
 
 
 def egm(
     model: Model,
-    dr0: DecisionRule = None,                       # Initial guess for decision rule
-    verbose: bool = False,                          # Whether to print iteration info
-    details: bool = True,                           # Whether to return detailed results
-    a_grid=None,                                    # Grid for post-decision states
-    η_tol=1e-6,                                     # Convergence tolerance
-    maxit=1000,                                     # Maximum iterations
-    grid=None,                                      # Optional state space grid
-    dp=None,                                        # Optional discretized process
+    dr0: DecisionRule = None, # Initial guess for decision rule
+    verbose: bool = False,    # Whether to print iteration info
+    details: bool = True,     # Whether to return detailed results
+    trace: bool = False,      # Whether to record iteration history                    # newline
+    a_grid=None,              # Grid for post-decision states
+    η_tol=1e-6,               # Convergence tolerance
+    maxit=1000,               # Maximum iterations
+    grid=None,                # Optional state space grid
+    dp=None,                  # Optional discretized process
 ):
     """
     a_grid: (numpy-array) vector of points used to discretize poststates; must be increasing
+    trace: (bool) if True, decision rules at each iteration are stored                 # newline
     """
+                                                                                       # newline 
+    # Initialize trace collection                                                      # newline 
+    trace_details = [] if trace else None                                              # newline
 
     assert len(model.symbols["states"]) == 1        # Only one state variable allowed
     assert (
@@ -81,70 +118,126 @@ def egm(
         print(headline)
         print(stars)
 
-    for it in range(0, maxit):                      # Main iteration loop
+##    for it in range(0, maxit):
+##
+##            drfut = dr0
+##
+##        else:
 
-        if it == 0:
-            drfut = dr0                             # Use initial guess first time
+# changed indentation of this block because it was moved out of the loop               # newline 
+    def drfut(i, ss):
+        if iid_process:
+            i = 0
+        m = dp.node(i)
+        l_ = lb(m, ss, p)
+        u_ = ub(m, ss, p)
+        x = eval_linear((sa0[i, :, 0],), xa0[i, :, 0], ss)[:, None]
+        x = np.minimum(x, u_)
+        x = np.maximum(x, l_)
+        return x
 
-        else:
-            def drfut(i, ss):                       # Future decision rule
-                if iid_process:
-                    i = 0                           # Only one exogenous state for IID
-                m = dp.node(i)                      # Get exogenous state
-                l_ = lb(m, ss, p)                   # Get lower bound
-                u_ = ub(m, ss, p)                   # Get upper bound
-                x = eval_linear((sa0[i, :, 0],), xa0[i, :, 0], ss)[:, None]  # Interpolate policy
-                x = np.minimum(x, u_)               # Apply upper bound
-                x = np.maximum(x, l_)               # Apply lower bound
-                return x
-
-        z[:, :, :] = 0                             # Reset expectations
-
-        for i_m in range(n_m):                      # Loop over exogenous states
-            m = dp.node(i_m)                        # Get current exogenous state
-            for i_M in range(dp.n_inodes(i_m)):     # Loop over future states
-                w = dp.iweight(i_m, i_M)            # Get transition probability
-                M = dp.inode(i_m, i_M)              # Get future exogenous state
-                S = gt(m, a, M, p)                  # Get future endogenous state
+    # Initialize drcurr to the initial guess                                           # newline
+    drcurr = dr0                                                                       # newline 
+                                                                                       # newline
+    # Initialize grid objects once for all code paths                                  # newline
+    endo_grid = grid["endo"]                                                           # newline
+    exo_grid = grid["exo"]                                                             # newline 
+    mdr = DecisionRule(exo_grid, endo_grid, dprocess=dp, interp_method="cubic")        # newline
+                                                                                       # newline
+    # Special case for maxit=0: return the initial guess directly                      # newline
+    if maxit == 0:                                                                     # newline
+        # Sample dr0 onto the standard grid                                            # newline
+        mdr.set_values(                                                                # newline 
+            np.concatenate([dr0(i, s)[None, :, :] for i in range(n_m)], axis=0)        # newline
+        )                                                                              # newline
+                                                                                       # newline
+        # Add initial state to trace if enabled                                        # newline 
+        if trace:                                                                      # newline
+            trace_details.append({"dr": copy.deepcopy(mdr)})                           # newline
+                                                                                       # newline
+        sol = EGMResult(                                                               # newline
+            mdr,           # Decision rule                                             # newline
+            0,             # Iterations                                                # newline
+            dp,            # Discretized process                                       # newline
+            True,          # Converged (since no iterations requested)                 # newline
+            η_tol,         # Tolerance level                                           # newline
+            0.0,           # Final error (no iterations, so no error)                  # newline
+            trace_details, # Add trace to result                                       # newline
+        )                                                                              # newline
+                                                                                       # newline    
+        return sol                                                                     # newline
+                                                                                       # newline 
+    # For maxit > 0, run the algorithm normally                                        # newline 
+    it = 0                                                                             # newline
+    η = 1                                                                              # newline 
+                                                                                       # newline
+    # Create initial mdr to store in trace                                             # newline
+    if trace:                                                                          # newline
+        # Set mdr to initial decision rule                                             # newline
+        mdr.set_values(                                                                # newline 
+            np.concatenate([drcurr(i, s)[None, :, :] for i in range(n_m)], axis=0)     # newline 
+        )                                                                              # newline 
+        trace_details.append({"dr": copy.deepcopy(mdr)})                               # newline
+                                                                                       # newline 
+    for it in range(0, maxit):                       # moved                           # newline
+        # Use drcurr for the first iteration, drfut for subsequent iterations          # newline
+        decision_rule = drcurr if it == 0 else drfut  # moved                          # newline
+        
+        z[:, :, :] = 0
+        
+        for i_m in range(n_m):
+            m = dp.node(i_m)
+            for i_M in range(dp.n_inodes(i_m)):
+                w = dp.iweight(i_m, i_M)
+                M = dp.inode(i_m, i_M)
+                S = gt(m, a, M, p)
                 print(it, i_m, i_M)
-                X = drfut(i_M, S)                   # Get future controls
-                z[i_m, :, :] += w * h(M, S, X, p)   # Update expectations
-            xa[i_m, :, :] = τ(m, a, z[i_m, :, :], p)  # Compute optimal policy
-            sa[i_m, :, :] = aτ(m, a, xa[i_m, :, :], p)  # Update state
-
+                X = decision_rule(i_M, S)  # Use the selected decision rule; modified  # newline
+                z[i_m, :, :] += w * h(M, S, X, p)
+            xa[i_m, :, :] = τ(m, a, z[i_m, :, :], p)
+            sa[i_m, :, :] = aτ(m, a, xa[i_m, :, :], p)
+        
+        # Compute error and check convergence
         if it > 1:
-            η = abs(xa - xa0).max() + abs(sa - sa0).max()  # Compute error
+            η = abs(xa - xa0).max() + abs(sa - sa0).max()
         else:
-            η = 1                                   # Skip error first iteration
-
+            η = 1
+            
         vprint("|{0:4} | {1:10.3e} |".format(it, η))
+##        if η < η_tol:
+##            break
+        sa0[...] = sa
+        xa0[...] = xa
+        
+        # Always update drcurr to drfut, even on the first iteration                   # newline 
+        drcurr = drfut                              # Modified to always update        # newline
+                                                                                       # newline        
+##    # resample the result on the standard grid
+        # Add current state to trace if enabled                                        # newline 
+        if trace:                                                                      # newline 
+            mdr.set_values(                                                            # newline 
+                np.concatenate([drcurr(i, s)[None, :, :] for i in range(n_m)], axis=0) # newline 
+            )                                                                          # newline 
+            trace_details.append({"dr": copy.deepcopy(mdr)})                           # newline
+            # newline
+        if η < η_tol:  # moved                                                         # newline 
+            break      # moved                                                         # newline 
 
-        if η < η_tol:                               # Check convergence
-            break
-
-        sa0[...] = sa                               # Store current states
-        xa0[...] = xa                               # Store current policy
-
-    # resample the result on the standard grid
-    # confusingly, what dolo calls "endo_grid" is what the EGM paper calls an exogenous grid
-    # in dolo, it is endogenous wrt the draws of the exogenous variable(s) (say, the income shock)
-    endo_grid = grid["endo"]                        # Get decision state grid
-    exo_grid = grid["exo"]                          # Get shock grid
-
-    # Create decision rule by interpolating among the points in the 
-    mdr = DecisionRule(exo_grid, endo_grid, dprocess=dp, interp_method="cubic")  
-
-    mdr.set_values(                                 # Set policy values
-        np.concatenate([drfut(i, s)[None, :, :] for i in range(n_m)], axis=0)
+    # Use drcurr for the final decision rule                                           # newline 
+    mdr.set_values(
+        np.concatenate([drcurr(i, s)[None, :, :] for i in range(n_m)], axis=0)# modified # newline
     )
 
-    sol = EGMResult(                                # Create result object
-        mdr,                                        # Decision rule
-        it,                                         # Number of iterations
-        dp,                                         # Discretized process
-        (η < η_tol),                               # Whether converged
-        η_tol,                                     # Tolerance level
-        η                                          # Final error
+##    sol = EGMResult(mdr, it, dp, (η < η_tol), η_tol, η)
+
+    sol = EGMResult(   # Create result object
+        mdr,           # Decision rule
+        it,            # Number of iterations
+        dp,            # Discretized process
+        (η < η_tol),   # Whether converged
+        η_tol,         # Tolerance level
+        η,             # Final error
+        trace_details, # Add trace to result
     )
 
     return sol
