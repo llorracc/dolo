@@ -9,14 +9,13 @@ from dolo.numeric.grids import CartesianGrid
 
 
 def residuals_simple(f, g, s, x, dr, dprocess, parms):
-    # Compute residuals for time iteration using simple evaluation (snt3p5)
 
-    N = s.shape[0]                                # Number of grid points
-    n_s = s.shape[1]                             # Number of state variables
+    N = s.shape[0]
+    n_s = s.shape[1]
 
-    res = numpy.zeros_like(x)                     # Initialize residuals array
+    res = numpy.zeros_like(x)
 
-    for i_ms in range(dprocess.n_nodes):          # Loop over exogenous states
+    for i_ms in range(dprocess.n_nodes):
 
         # solving on grid for markov index i_ms
         m = numpy.tile(dprocess.node(i_ms), (N, 1))
@@ -41,17 +40,17 @@ import copy
 def time_iteration(
     model: Model,
     *,  #
-    dr0: DecisionRule = None,  #                    # Initial guess for decision rule
-    verbose: bool = True,  #                        # Whether to print iteration info
-    details: bool = True,  #                        # Whether to return detailed results
-    ignore_constraints: bool = False,  #            # Whether to ignore complementarity constraints
-    trace: bool = False,  #                         # Whether to store iteration trace
-    dprocess=None,                                  # Discretized exogenous process
-    maxit=1000,                                     # Maximum outer iterations
-    inner_maxit=10,                                 # Maximum inner iterations
-    tol=1e-6,                                       # Convergence tolerance
-    hook=None,                                      # Optional callback function
-    interp_method="cubic",                          # Interpolation method for decision rule
+    dr0: DecisionRule = None,  #
+    verbose: bool = True,  #
+    details: bool = True,  #
+    ignore_constraints: bool = False,  #
+    trace: bool = False,  #
+    dprocess=None,
+    maxit=1000,
+    inner_maxit=10,
+    tol=1e-6,
+    hook=None,
+    interp_method="cubic",
     # obsolete
     with_complementarities=None,
 ) -> TimeIterationResult:
@@ -83,7 +82,7 @@ def time_iteration(
         approximated solution
     """
 
-    # Handle legacy option for complementarity constraints (snt3p5)
+    # deal with obsolete options
     if with_complementarities is not None:
         # TODO warn
         pass
@@ -91,86 +90,88 @@ def time_iteration(
         with_complementarities = not ignore_constraints
 
     if trace:
-        trace_details = []                          # Initialize trace storage
+        trace_details = []
     else:
         trace_details = None
 
-    def vprint(t):                                  # Helper function for verbose output
+    from dolo import dprint
+
+    def vprint(t):
         if verbose:
             print(t)
 
-    grid, dprocess_ = model.discretize()            # Discretize state space and shocks (snt3p5)
+    grid, dprocess_ = model.discretize()
 
     if dprocess is None:
-        dprocess = dprocess_                        # Use default discretization
+        dprocess = dprocess_
 
-    n_ms = dprocess.n_nodes                         # Number of exogenous states
-    n_mv = dprocess.n_inodes(0)                     # Number of integration nodes
+    n_ms = dprocess.n_nodes  # number of exogenous states
+    n_mv = dprocess.n_inodes(0)  # this assume number of integration nodes is constant
 
-    x0 = model.calibration["controls"]              # Get initial controls from calibration (snt3p5)
-    parms = model.calibration["parameters"]         # Get model parameters
-    n_x = len(x0)                                   # Number of controls
-    n_s = len(model.symbols["states"])             # Number of states
+    x0 = model.calibration["controls"]
+    parms = model.calibration["parameters"]
+    n_x = len(x0)
+    n_s = len(model.symbols["states"])
 
-    endo_grid = grid["endo"]                       # Grid for endogenous states (snt3p5)
-    exo_grid = grid["exo"]                         # Grid for exogenous states
+    endo_grid = grid["endo"]
+    exo_grid = grid["exo"]
 
-    mdr = DecisionRule(                            # Create interpolated decision rule (snt3p5)
+    mdr = DecisionRule(
         exo_grid, endo_grid, dprocess=dprocess, interp_method=interp_method
     )
 
-    s = mdr.endo_grid.nodes                        # Get grid nodes for states
-    N = s.shape[0]                                 # Number of grid points
+    s = mdr.endo_grid.nodes
+    N = s.shape[0]
 
-    controls_0 = numpy.zeros((n_ms, N, n_x))        # Initialize policy function array (snt3p5)
+    controls_0 = numpy.zeros((n_ms, N, n_x))
     if dr0 is None:
-        controls_0[:, :, :] = x0[None, None, :]     # Use constant initial guess from calibration (snt3p5)
+        controls_0[:, :, :] = x0[None, None, :]
     else:
         if isinstance(dr0, AlgoResult):
-            dr0 = dr0.dr                            # Extract decision rule from result
+            dr0 = dr0.dr
         try:
             for i_m in range(n_ms):
-                controls_0[i_m, :, :] = dr0(i_m, s)  # Evaluate initial guess on grid
+                controls_0[i_m, :, :] = dr0(i_m, s)
         except Exception:
             for i_m in range(n_ms):
                 m = dprocess.node(i_m)
-                controls_0[i_m, :, :] = dr0(m, s)    # Alternative evaluation method
+                controls_0[i_m, :, :] = dr0(m, s)
 
-    f = model.functions["arbitrage"]                # Get optimality conditions function (snt3p5)
-    g = model.functions["transition"]               # Get state transition function
+    f = model.functions["arbitrage"]
+    g = model.functions["transition"]
 
     if "arbitrage_lb" in model.functions and with_complementarities == True:
-        lb_fun = model.functions["arbitrage_lb"]    # Get lower bound function for constraints (snt3p5)
-        ub_fun = model.functions["arbitrage_ub"]    # Get upper bound function for constraints
-        lb = numpy.zeros_like(controls_0) * numpy.nan  # Initialize bounds arrays
+        lb_fun = model.functions["arbitrage_lb"]
+        ub_fun = model.functions["arbitrage_ub"]
+        lb = numpy.zeros_like(controls_0) * numpy.nan
         ub = numpy.zeros_like(controls_0) * numpy.nan
         for i_m in range(n_ms):
-            m = dprocess.node(i_m)[None, :]         # Get exogenous state
-            p = parms[None, :]                      # Get parameters
-            m = numpy.repeat(m, N, axis=0)          # Repeat for each grid point
+            m = dprocess.node(i_m)[None, :]
+            p = parms[None, :]
+            m = numpy.repeat(m, N, axis=0)
             p = numpy.repeat(p, N, axis=0)
 
-            lb[i_m, :, :] = lb_fun(m, s, p)        # Compute lower bounds at each point (snt3p5)
-            ub[i_m, :, :] = ub_fun(m, s, p)        # Compute upper bounds at each point
+            lb[i_m, :, :] = lb_fun(m, s, p)
+            ub[i_m, :, :] = ub_fun(m, s, p)
 
     else:
-        with_complementarities = False              # Disable complementarities if no bounds
+        with_complementarities = False
 
-    sh_c = controls_0.shape                        # Store shape for reshaping
+    sh_c = controls_0.shape
 
-    controls_0 = controls_0.reshape((-1, n_x))      # Flatten controls for optimization (snt3p5)
+    controls_0 = controls_0.reshape((-1, n_x))
 
     from dolo.numeric.optimize.newton import newton, SerialDifferentiableFunction
     from dolo.numeric.optimize.ncpsolve import ncpsolve
 
-    err = 10                                       # Initialize error measure
-    it = 0                                         # Initialize iteration counter
+    err = 10
+    it = 0
 
     if with_complementarities:
-        lb = lb.reshape((-1, n_x))                 # Reshape bounds for optimization
+        lb = lb.reshape((-1, n_x))
         ub = ub.reshape((-1, n_x))
 
-    itprint = IterationsPrinter(                   # Setup iteration printer for progress (snt3p5)
+    itprint = IterationsPrinter(
         ("N", int),
         ("Error", float),
         ("Gain", float),
@@ -182,75 +183,103 @@ def time_iteration(
 
     import time
 
-    t1 = time.time()                              # Start timing iterations (snt3p5)
+    t1 = time.time()
 
-    err_0 = numpy.nan                             # Initialize previous error
+    err_0 = numpy.nan
 
-    verbit = verbose == "full"                    # Set verbose flag for solver
+    verbit = verbose == "full"
 
-    while err > tol and it < maxit:               # Main iteration loop until convergence (snt3p5)
+    if maxit == 0:
+        # Create a decision rule equivalent to dr0
+        endo_grid = grid["endo"]
+        exo_grid = grid["exo"]
+        mdr = DecisionRule(exo_grid, endo_grid, dprocess=dprocess, interp_method="cubic")
+        
+        # Sample dr0 onto the standard grid
+        if dr0 is not None:
+            n_m = dprocess.n_nodes
+            x_init = numpy.concatenate([dr0(i, grid["endo"].nodes)[None, :, :] for i in range(n_m)], axis=0)
+            mdr.set_values(x_init)
+        else:
+            # Use calibrated values if dr0 is None
+            x_init = numpy.zeros((grid["endo"].nodes.shape[0], x0.shape[0]))
+            x_init[:, :] = x0[None, :]
+            mdr.set_values(x_init)
+        
+        # Return result object with iteration count 0
+        sol = TimeIterationResult(
+            mdr,                  # Decision rule
+            0,                    # Iterations
+            with_complementarities,   # Complementarities boolean
+            dprocess,             # Discretized process 
+            True,                 # x_converged: True since no iterations requested
+            tol,                  # x_tol: tolerance level
+            0.0,                  # err: no error since no iterations
+            None,                 # log: None
+            None,                 # trace: None
+        )
+        return sol
 
-        it += 1                                   # Increment counter
+    while err > tol and it < maxit:
 
-        t_start = time.time()                     # Start iteration timer
+        it += 1
 
-        mdr.set_values(controls_0.reshape(sh_c))    # Update decision rule with current controls (snt3p5)
+        t_start = time.time()
+
+        mdr.set_values(controls_0.reshape(sh_c))
 
         if trace:
-            trace_details.append({"dr": copy.deepcopy(mdr)})  # Store current state
+            trace_details.append({"dr": copy.deepcopy(mdr)})
 
-        fn = lambda x: residuals_simple(           # Define residual function for solver (snt3p5)
+        fn = lambda x: residuals_simple(
             f, g, s, x.reshape(sh_c), mdr, dprocess, parms
         ).reshape((-1, n_x))
-        dfn = SerialDifferentiableFunction(fn)     # Create differentiable function
+        dfn = SerialDifferentiableFunction(fn)
 
-        res = fn(controls_0)                       # Compute current residuals
+        res = fn(controls_0)
 
         if hook:
-            hook()                                 # Call hook if provided
+            hook()
 
         if with_complementarities:
-            [controls, nit] = ncpsolve(            # Solve with complementarity constraints (snt3p5)
+            [controls, nit] = ncpsolve(
                 dfn, lb, ub, controls_0, verbose=verbit, maxit=inner_maxit
             )
         else:
-            [controls, nit] = newton(              # Solve without constraints using Newton method (snt3p5)
-                dfn, controls_0, verbose=verbit, maxit=inner_maxit
-            )
+            [controls, nit] = newton(dfn, controls_0, verbose=verbit, maxit=inner_maxit)
 
-        err = abs(controls - controls_0).max()     # Compute maximum absolute error (snt3p5)
+        # After optimization is complete
+        err = abs(controls - controls_0).max()
 
-        err_SA = err / err_0                       # Compute successive approximation ratio
-        err_0 = err                                # Store current error
+        err_SA = err / err_0
+        err_0 = err
 
-        controls_0 = controls                      # Update controls for next iteration (snt3p5)
+        controls_0 = controls
 
         t_finish = time.time()
-        elapsed = t_finish - t_start               # Compute iteration time
+        elapsed = t_finish - t_start
 
-        itprint.print_iteration(                   # Print iteration info
-            N=it, Error=err_0, Gain=err_SA, Time=elapsed, nit=nit
-        )
+        itprint.print_iteration(N=it, Error=err_0, Gain=err_SA, Time=elapsed, nit=nit),
 
-    controls_0 = controls.reshape(sh_c)            # Reshape solution to original dimensions (snt3p5)
+    controls_0 = controls.reshape(sh_c)
 
-    mdr.set_values(controls_0)                     # Update decision rule with final solution
+    mdr.set_values(controls_0)
     if trace:
-        trace_details.append({"dr": copy.deepcopy(mdr)})  # Store final state
+        trace_details.append({"dr": copy.deepcopy(mdr)})
 
-    itprint.print_finished()                       # Print completion message
+    itprint.print_finished()
 
     if not details:
-        return mdr                                 # Return decision rule only
-    else:
-        return TimeIterationResult(                # Return detailed results object (snt3p5)
-            mdr,                                   # Decision rule
-            it,                                    # Number of iterations
-            with_complementarities,                # Whether complementarities were used
-            dprocess,                              # Discretized process
-            err < tol,                            # Whether convergence was achieved
-            tol,                                  # Tolerance level
-            err,                                  # Final error
-            None,                                 # Log (not implemented)
-            trace_details,                        # Trace of iterations
-        )
+        return mdr
+
+    return TimeIterationResult(
+        mdr,
+        it,
+        with_complementarities,
+        dprocess,
+        err < tol,  # x_converged: bool
+        tol,  # x_tol
+        err,  #: float
+        None,  # log: object # TimeIterationLog
+        trace_details,  # trace: object #{Nothing,IterationTrace}
+    )
