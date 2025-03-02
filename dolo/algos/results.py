@@ -31,6 +31,7 @@ class EGMResult(AlgoResult):
     a_tol: float        # Tolerance level for assets
     # log: object  # TimeIterationLog
     err: float          # Final error value
+    trace: object        # Detailed trace of iterations
 
 
 @dataclass
